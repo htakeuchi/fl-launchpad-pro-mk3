@@ -32,32 +32,6 @@ FL Studio controller scripts:
 The DAW helper turns on Launchpad DAW Mode and forwards Session button events to
 the main MIDI script. The main script then enters or exits FL Control Mode.
 
-## FL Studio MIDI Setup
-
-Quit FL Studio before installing or replacing the scripts.
-
-Use the MIDI settings like this:
-
-![Annotated FL Studio MIDI settings for Launchpad Pro MK3](docs/fl-studio-midi-settings.png)
-
-| FL Studio port | Controller Type | Enabled |
-| --- | --- | --- |
-| `Launchpad Pro MK3 LPProMK3 MIDI` | `NovationLaunchpadProMK3Midi` | On |
-| `Launchpad Pro MK3 LPProMK3 DAW` | `NovationLaunchpadProMK3DAW` | On |
-| `Launchpad Pro MK3 LPProMK3 DIN` | None or Generic | Off, unless you need DIN MIDI |
-
-The port numbers in the image are only examples. The important rule is that each
-Launchpad interface uses the same FL Studio port number on both Input and
-Output. In other words, the `LPProMK3 MIDI` input and output should match each
-other, and the `LPProMK3 DAW` input and output should match each other.
-
-Do not assign `NovationLaunchpadProMK3Midi` to the DAW port, and do not assign
-`NovationLaunchpadProMK3DAW` to the MIDI port. The two scripts have different
-jobs and are meant to run together.
-
-Enable the matching FL Studio output ports when you want LEDs, DAW Mode, and
-layout switching to work reliably.
-
 ## Installation
 
 ### macOS Installer Script
@@ -78,8 +52,8 @@ The installer copies the two script folders to:
 ~/Documents/Image-Line/FL Studio/Settings/Hardware/NovationLaunchpadProMK3DAW
 ```
 
-After installation, restart FL Studio and select the controller types shown in
-the setup table above.
+After installation, restart FL Studio, then continue with the FL Studio MIDI
+Setup section below.
 
 ### Manual Installation
 
@@ -113,13 +87,38 @@ custom location, or when you do not want to use the macOS script.
    <User data folder>/FL Studio/Settings/Hardware/NovationLaunchpadProMK3DAW
    ```
 
-5. Restart FL Studio.
-6. Open `Options > MIDI settings`, then assign the `LPProMK3 MIDI` and
-   `LPProMK3 DAW` input/output ports as shown in the MIDI setup section.
+5. Restart FL Studio, then continue with the FL Studio MIDI Setup section below.
 
 If you are replacing an older copy, remove the old installed
 `NovationLaunchpadProMK3Midi` and `NovationLaunchpadProMK3DAW` folders before
 copying the new ones.
+
+## FL Studio MIDI Setup
+
+Configure MIDI only after the script folders are installed and FL Studio has
+been restarted.
+
+Use the MIDI settings like this:
+
+![Annotated FL Studio MIDI settings for Launchpad Pro MK3](docs/fl-studio-midi-settings.png)
+
+| FL Studio port | Controller Type | Enabled |
+| --- | --- | --- |
+| `Launchpad Pro MK3 LPProMK3 MIDI` | `NovationLaunchpadProMK3Midi` | On |
+| `Launchpad Pro MK3 LPProMK3 DAW` | `NovationLaunchpadProMK3DAW` | On |
+| `Launchpad Pro MK3 LPProMK3 DIN` | None or Generic | Off, unless you need DIN MIDI |
+
+The port numbers in the image are only examples. The important rule is that each
+Launchpad interface uses the same FL Studio port number on both Input and
+Output. In other words, the `LPProMK3 MIDI` input and output should match each
+other, and the `LPProMK3 DAW` input and output should match each other.
+
+Do not assign `NovationLaunchpadProMK3Midi` to the DAW port, and do not assign
+`NovationLaunchpadProMK3DAW` to the MIDI port. The two scripts have different
+jobs and are meant to run together.
+
+Enable the matching FL Studio output ports when you want LEDs, DAW Mode, and
+layout switching to work reliably.
 
 ## Mode Overview
 
