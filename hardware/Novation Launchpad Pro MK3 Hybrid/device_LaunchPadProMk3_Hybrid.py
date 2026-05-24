@@ -48,6 +48,7 @@ ForbiddenPads = [0, 9, 90, 99] #corners
 SessionButton = 0x5D
 NoteButton = 0x5E
 ChordButton = 0x5F
+CustomButton = 0x60
 Div127 = 1 / 127
 
 SysexIdentityRequest = bytes([0xF0, 0x7E, 0x7F, 0x06, 0x01, 0xF7])
@@ -63,6 +64,7 @@ HybridCommandEnterControllerMode = 0x02
 
 LayoutSession = 0
 LayoutChord = 2
+LayoutCustom = 3
 LayoutNote = 4
 
 TopModeButtonLeds = {
@@ -154,6 +156,7 @@ class TLaunchPadPro():
         self.CurLayout = 0
         self.ControllerMode = False
         self.LastStandaloneLayout = LayoutNote
+        self.LastStandalonePage = 0
         self.SuppressNextSessionLayout = False
 
         self.BtnMapMode = 0 #animation
@@ -199,6 +202,7 @@ class TLaunchPadPro():
             if (len(event.sysex) == 11) & (event.sysex[5] == 0x0E) & (event.sysex[6] == 0x00):
                 print('layout change')
                 self.CurLayout = event.sysex[7]
+                layout_page = event.sysex[8]
                 if self.CurLayout == LayoutSession:
                     if self.SuppressNextSessionLayout:
                         self.SuppressNextSessionLayout = False
@@ -206,6 +210,7 @@ class TLaunchPadPro():
                         self.SetControllerMode(True)
                 elif not self.ControllerMode:
                     self.LastStandaloneLayout = self.CurLayout
+                    self.LastStandalonePage = layout_page
             event.handled = True
         else:
             event.handled = False
@@ -221,7 +226,17 @@ class TLaunchPadPro():
         return (event.midiId in [midi.MIDI_NOTEON, midi.MIDI_NOTEOFF, midi.MIDI_CONTROLCHANGE]) and (event.data1 == SessionButton)
 
     def IsModeExitButton(self, event):
-        return (event.midiId in [midi.MIDI_NOTEON, midi.MIDI_NOTEOFF, midi.MIDI_CONTROLCHANGE]) and (event.data1 in [NoteButton, ChordButton])
+        return (event.midiId in [midi.MIDI_NOTEON, midi.MIDI_NOTEOFF, midi.MIDI_CONTROLCHANGE]) and (event.data1 in [NoteButton, ChordButton, CustomButton])
+
+    def SetStandaloneLayoutFromModeButton(self, data1):
+        if data1 == NoteButton:
+            self.LastStandaloneLayout = LayoutNote
+            self.LastStandalonePage = 0
+        elif data1 == ChordButton:
+            self.LastStandaloneLayout = LayoutChord
+            self.LastStandalonePage = 0
+        elif data1 == CustomButton:
+            self.LastStandaloneLayout = LayoutCustom
 
     def ApplyControllerModeButtonLeds(self):
         if not self.ControllerMode:
@@ -276,7 +291,7 @@ class TLaunchPadPro():
             device.stopRepeatMidiEvent()
             device.midiOutSysex(SysexProgrammerModeOff)
             device.midiOutSysex(SysexDawModeOn)
-            device.midiOutSysex(BuildSelectLayoutSysex(self.LastStandaloneLayout))
+            device.midiOutSysex(BuildSelectLayoutSysex(self.LastStandaloneLayout, self.LastStandalonePage))
 
     def OnMidiMsg(self, event):
         print (event.status, event.data1, event.data2)
@@ -294,7 +309,7 @@ class TLaunchPadPro():
         if self.ControllerMode and self.IsModeExitButton(event):
             event.handled = True
             if event.data2 > 0:
-                self.LastStandaloneLayout = LayoutNote if event.data1 == NoteButton else LayoutChord
+                self.SetStandaloneLayoutFromModeButton(event.data1)
                 self.SetControllerMode(False)
             return
 

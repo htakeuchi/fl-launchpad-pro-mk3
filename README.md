@@ -11,7 +11,8 @@ Launchpad Pro MK3 for FL Studio の実験用ハイブリッドスクリプトで
 - 通常モード中は、Session ボタン以外のMIDIイベントをFLへ素通しします。
 - 通常モード中に補助スクリプトがSessionボタン/Sessionレイアウト切り替えを受けると、MIDI側スクリプトへ通知し、Programmer Mode をONにして元スクリプト由来のFL制御/LED更新を開始します。
 - FL制御モード中にもう一度 Session ボタンを押すと Programmer Mode をOFFに戻します。
-- FL制御モード中に Note / Chord ボタンを押すと Programmer Mode をOFFにし、それぞれの通常モードへ戻ります。
+- FL制御モード中に Note / Chord / Custom ボタンを押すと Programmer Mode をOFFにし、それぞれの通常モードへ戻ります。
+- Customモード中はFactory Custom ModeのMIDIを処理せずFL Studioへ渡します。Customページ番号も保持し、FL制御モードから戻るときに直前のCustomページへ戻します。
 - FL制御モード中はスクリプト側でModeボタン行を明示的に点灯します。Programmer ModeのLED番号差を吸収するため、通常の座標更新に加えて直接RGB SysExでも点灯します。
 - 終了時は MIDI側が Programmer Mode OFF、DAW側が DAW Mode OFF を送信します。
 
