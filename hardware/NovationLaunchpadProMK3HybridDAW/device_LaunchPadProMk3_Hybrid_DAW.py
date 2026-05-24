@@ -1,4 +1,4 @@
-# name=Novation Launchpad Pro MK3 Hybrid DAW
+# name=NovationLaunchpadProMK3HybridDAW
 # url=
 # supportedDevices=LPProMK3 DAW
 
@@ -44,13 +44,13 @@ def IsLayoutChange(event, layout):
 
 def OnInit():
     if device.isAssigned():
-        print('Launchpad Pro MK3 Hybrid DAW: DAW mode on')
+        print('NovationLaunchpadProMK3HybridDAW: DAW mode on')
         device.midiOutSysex(SysexDawModeOn)
 
 
 def OnDeInit():
     if device.isAssigned():
-        print('Launchpad Pro MK3 Hybrid DAW: DAW mode off')
+        print('NovationLaunchpadProMK3HybridDAW: DAW mode off')
         device.midiOutSysex(SysexDawModeOff)
 
 
@@ -76,4 +76,3 @@ def OnMidiIn(event):
 def OnSysEx(event):
     if IsLayoutChange(event, LayoutSession):
         DispatchToHybridMidiScript(HybridCommandEnterControllerMode)
-

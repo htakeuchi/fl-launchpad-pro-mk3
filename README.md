@@ -20,11 +20,11 @@ Launchpad Pro MK3 for FL Studio の実験用ハイブリッドスクリプトで
 
 | Port | Controller Type | Enabled |
 | --- | --- | --- |
-| Launchpad Pro MK3 LPProMK3 MIDI | Novation Launchpad Pro MK3 Hybrid | On |
-| Launchpad Pro MK3 LPProMK3 DAW | Novation Launchpad Pro MK3 Hybrid DAW | On |
+| Launchpad Pro MK3 LPProMK3 MIDI | NovationLaunchpadProMK3Hybrid | On |
+| Launchpad Pro MK3 LPProMK3 DAW | NovationLaunchpadProMK3HybridDAW | On |
 | Launchpad Pro MK3 LPProMK3 DIN | None / Generic | Off unless DIN is needed |
 
-DAWポートには `Novation Launchpad Pro MK3 Hybrid DAW` だけを割り当ててください。MIDI側の `Novation Launchpad Pro MK3 Hybrid` をDAWポートへ割り当てないでください。
+DAWポートには `NovationLaunchpadProMK3HybridDAW` だけを割り当ててください。MIDI側の `NovationLaunchpadProMK3Hybrid` をDAWポートへ割り当てないでください。
 
 ## インストール
 
@@ -37,8 +37,11 @@ FL Studioを終了してから実行します。
 コピー先:
 
 ```text
-~/Documents/Image-Line/FL Studio/Settings/Hardware/Novation Launchpad Pro MK3 Hybrid
+~/Documents/Image-Line/FL Studio/Settings/Hardware/NovationLaunchpadProMK3Hybrid
+~/Documents/Image-Line/FL Studio/Settings/Hardware/NovationLaunchpadProMK3HybridDAW
 ```
+
+インストール時に旧フォルダ `Novation Launchpad Pro MK3 Hybrid` / `Novation Launchpad Pro MK3 Hybrid DAW` は削除され、`reg.xml` の `ScriptFolder` 名もスペースなしへ更新されます。
 
 ## 実機確認ポイント
 

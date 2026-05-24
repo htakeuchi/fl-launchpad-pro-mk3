@@ -1,7 +1,7 @@
-# name=Novation Launchpad Pro MK3 Hybrid
+# name=NovationLaunchpadProMK3Hybrid
 # url=
 # supportedDevices=LPProMK3 MIDI
-# receiveFrom=Novation Launchpad Pro MK3 Hybrid DAW
+# receiveFrom=NovationLaunchpadProMK3HybridDAW
 
 import patterns
 import mixer
@@ -266,7 +266,7 @@ class TLaunchPadPro():
             return
 
         if Enabled:
-            print('Launchpad Pro MK3 Hybrid: FL control mode on')
+            print('NovationLaunchpadProMK3Hybrid: FL control mode on')
             device.midiOutSysex(SysexIdentityRequest)
             device.midiOutSysex(SysexProgrammerModeOn)
             self.CurLayout = 3
@@ -280,7 +280,7 @@ class TLaunchPadPro():
             device.fullRefresh()
             self.SendControllerModeButtonLeds()
         else:
-            print('Launchpad Pro MK3 Hybrid: normal Launchpad mode on')
+            print('NovationLaunchpadProMK3Hybrid: normal Launchpad mode on')
             if self.CurLayout == 3:
                 self.SwitchLedsOff()
             self.SuppressNextSessionLayout = True
