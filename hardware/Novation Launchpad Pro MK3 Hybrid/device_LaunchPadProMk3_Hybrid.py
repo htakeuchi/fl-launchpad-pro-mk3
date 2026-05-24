@@ -46,6 +46,8 @@ LayH = ClipsH
 PadsStride = 10
 ForbiddenPads = [0, 9, 90, 99] #corners
 SessionButton = 0x5D
+NoteButton = 0x5E
+ChordButton = 0x5F
 Div127 = 1 / 127
 
 SysexIdentityRequest = bytes([0xF0, 0x7E, 0x7F, 0x06, 0x01, 0xF7])
@@ -62,6 +64,15 @@ HybridCommandEnterControllerMode = 0x02
 LayoutSession = 0
 LayoutChord = 2
 LayoutNote = 4
+
+TopModeButtonLeds = {
+    3: 0x3F3F3F, # Session / FL control mode
+    4: 0x080808, # Note
+    5: 0x080808, # Chord
+    6: 0x080808,
+    7: 0x080808,
+    8: 0x080808,
+}
 
 def BuildSelectLayoutSysex(Layout, Page=0):
     return bytes([0xF0, 0x00, 0x20, 0x29, 0x02, 0x0E, 0x00, Layout, Page, 0x00, 0xF7])
@@ -194,6 +205,15 @@ class TLaunchPadPro():
     def IsSessionButton(self, event):
         return (event.midiId in [midi.MIDI_NOTEON, midi.MIDI_NOTEOFF, midi.MIDI_CONTROLCHANGE]) and (event.data1 == SessionButton)
 
+    def IsModeExitButton(self, event):
+        return (event.midiId in [midi.MIDI_NOTEON, midi.MIDI_NOTEOFF, midi.MIDI_CONTROLCHANGE]) and (event.data1 in [NoteButton, ChordButton])
+
+    def ApplyControllerModeButtonLeds(self):
+        if not self.ControllerMode:
+            return
+        for x, color in TopModeButtonLeds.items():
+            self.BtnMap[0][x] = color
+
     def SetControllerMode(self, Enabled):
         if Enabled == self.ControllerMode:
             return
@@ -215,6 +235,7 @@ class TLaunchPadPro():
                 self.SetBtn(n, self.BtnT[n])
             self.OnUpdateLiveMode(playlist.trackCount())
             self.SetOfs(self.TrackOfs, self.ClipOfs)
+            self.ApplyControllerModeButtonLeds()
             device.fullRefresh()
         else:
             print('Launchpad Pro MK3 Hybrid: normal Launchpad mode on')
@@ -241,6 +262,13 @@ class TLaunchPadPro():
             event.handled = True
             if event.data2 > 0:
                 self.SetControllerMode(not self.ControllerMode)
+            return
+
+        if self.ControllerMode and self.IsModeExitButton(event):
+            event.handled = True
+            if event.data2 > 0:
+                self.LastStandaloneLayout = LayoutNote if event.data1 == NoteButton else LayoutChord
+                self.SetControllerMode(False)
             return
 
         if not self.ControllerMode:
@@ -779,8 +807,10 @@ class TLaunchPadPro():
                     y, x = BtnInfo[Btn_Play].GetYX()
                     self.BtnMap[y][x] = c
                     self.BtnMap[0][PadsW - 1] = c
+                    self.ApplyControllerModeButtonLeds()
                     self.FullRefresh_Btn()
                 else:
+                    self.ApplyControllerModeButtonLeds()
                     self.UpdateBlinking()
 
     def OnRefresh(self, flags):
@@ -985,6 +1015,7 @@ class TLaunchPadPro():
                     for x in range(0, LayW):
                         self.BtnMap[LayY + y][LayX + x] = self.FixColor(launchMapPages.getMapItemColor(-self.ClipOfs - 2, y * LayW + x))
 
+            self.ApplyControllerModeButtonLeds()
             self.FullRefresh_Btn()
 
 LaunchPadPro = TLaunchPadPro()
