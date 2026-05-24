@@ -9,6 +9,12 @@ again, or press Note, Chord, or Custom, to return to normal Launchpad operation.
 
 This project is not affiliated with Image-Line, Novation, or Focusrite.
 
+This script is developed from the original FL Studio Launchpad Pro MIDI script
+shared on the Image-Line forum. The original script post is here:
+[Image-Line forum: Launchpad Pro original script](https://forum.image-line.com/viewtopic.php?p=1494176#p1494176).
+The original feature description is here:
+[Image-Line forum: Novation Launchpad Pro feature guide](https://forum.image-line.com/viewtopic.php?f=1914&t=145029).
+
 ## Why There Are Two Scripts
 
 Launchpad Pro MK3 exposes three USB MIDI interfaces:
@@ -250,11 +256,12 @@ These pages are separate from Launchpad's hardware Custom Mode pages.
 
 ## Original FL Studio Launchpad Pro Features
 
-Image-Line's original Launchpad Pro forum note describes the controller as a
-clip launcher, note controller, parameter controller, and user-scriptable page
-surface. This project keeps that FL Studio control-surface behavior available in
-FL Control Mode, while leaving Launchpad Pro MK3's normal hardware modes
-available outside FL Control Mode.
+This project is based on the original FL Studio Launchpad Pro script shared in
+the Image-Line forum. Image-Line's Launchpad Pro feature guide describes that
+controller as a clip launcher, note controller, parameter controller, and
+user-scriptable page surface. This project keeps that FL Studio control-surface
+behavior available in FL Control Mode, while leaving Launchpad Pro MK3's normal
+hardware modes available outside FL Control Mode.
 
 The original setup instructions refer to `MIDIIN2 (Launchpad Pro)` with matching
 input and output port numbers. For Launchpad Pro MK3, use the MIDI setup shown
@@ -265,7 +272,7 @@ above instead:
 - The exact port numbers are local examples, but each interface must use the
   same number on Input and Output.
 
-Feature compatibility with the visible Image-Line forum description:
+Feature compatibility with the visible Image-Line forum feature description:
 
 | Original feature area | Status in this script |
 | --- | --- |
@@ -340,7 +347,8 @@ action listed here is the behavior implemented by this script.
 
 ## References
 
-- [Image-Line forum: Novation Launchpad Pro](https://forum.image-line.com/viewtopic.php?f=1914&t=145029)
+- [Image-Line forum: Launchpad Pro original script](https://forum.image-line.com/viewtopic.php?p=1494176#p1494176)
+- [Image-Line forum: Novation Launchpad Pro feature guide](https://forum.image-line.com/viewtopic.php?f=1914&t=145029)
 - [Launchpad Pro MK3 hardware overview](https://userguides.novationmusic.com/hc/en-gb/articles/25494505681042-Launchpad-Pro-MK3-hardware-overview)
 - [Launchpad Pro MK3 Programmer's Reference Guide](https://fael-downloads-prod.focusrite.com/customer/prod/s3fs-public/downloads/LPP3_prog_ref_guide_200415.pdf)
 - [Image-Line FL Studio MIDI settings](https://www.image-line.com/fl-studio-learning/fl-studio-online-manual/html/envsettings_midi.htm)
