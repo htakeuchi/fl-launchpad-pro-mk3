@@ -248,6 +248,48 @@ from the original Launchpad-style FL Studio script layout files:
 
 These pages are separate from Launchpad's hardware Custom Mode pages.
 
+## Original FL Studio Launchpad Pro Features
+
+Image-Line's original Launchpad Pro forum note describes the controller as a
+clip launcher, note controller, parameter controller, and user-scriptable page
+surface. This project keeps that FL Studio control-surface behavior available in
+FL Control Mode, while leaving Launchpad Pro MK3's normal hardware modes
+available outside FL Control Mode.
+
+The original setup instructions refer to `MIDIIN2 (Launchpad Pro)` with matching
+input and output port numbers. For Launchpad Pro MK3, use the MIDI setup shown
+above instead:
+
+- `LPProMK3 MIDI` is assigned to `NovationLaunchpadProMK3Midi`.
+- `LPProMK3 DAW` is assigned to `NovationLaunchpadProMK3DAW`.
+- The exact port numbers are local examples, but each interface must use the
+  same number on Input and Output.
+
+Feature compatibility with the visible Image-Line forum description:
+
+| Original feature area | Status in this script |
+| --- | --- |
+| Clips / Performance zones | Preserved in FL Control Mode. The 8x8 grid launches FL Studio live clips and displays clip state. |
+| Overview | Preserved in FL Control Mode. Overview shows 8x8 Playlist zones and lets you jump to a zone. |
+| Navigation | Preserved in FL Control Mode. Navigation moves by clip/track increments; holding all four navigation buttons toggles page-sized movement and resets offsets. |
+| Scene and +Scene | Preserved in FL Control Mode. These trigger column/group behavior and can be locked by double-tapping. |
+| Queue | Preserved in FL Control Mode. Queue modifies the next triggered clips. |
+| Global Snap | Preserved in FL Control Mode. Global Snap modifies clip triggering to use FL Studio's global snap. |
+| Same Mode | Preserved in FL Control Mode through the combined Scene/+Scene trigger behavior inherited from the original script. |
+| Track settings page | Preserved in FL Control Mode. It exposes track activity, position snap, trigger snap, loop mode, and trigger mode controls. |
+| Pad pressure linking | Preserved in FL Control Mode. Channel pressure and poly pressure are converted to FL Studio special CC data for linking. |
+| Note and controller pages | Preserved as bundled `.scr` map pages. These include chromatic, melodic, FPC, fader, Gross Beat, XY, tempo, and system layouts. |
+| User-scriptable pages | Preserved through the inherited `Page*.scr`, `Palette.scr`, and `launchMapPages` workflow. |
+| Transport controls on map pages | Preserved in the bundled pages. Several pages include Record, Overdub, Loop Recording, Metronome, Wait for Input, Step Edit, Previous Channel, and Next Channel entries. |
+| Light show / animation mapping | Mostly preserved. MIDI note output can still drive pad animation modes and RGB-style animation data. The legacy video/pixel capture path is present in the code but is not guaranteed in this MK3 switching layout. |
+| Alt Location | Not exposed as a documented MK3 hardware workflow in this project. Use navigation and overview/map-page selection instead. |
+
+The main behavioral difference is when these features are active. The original
+Launchpad Pro script behaves as a dedicated FL Studio surface. This MK3 version
+uses Session as a mode switch: FL Studio control features are active in FL
+Control Mode, and the Launchpad's native Note, Chord, Sequencer, and Custom
+Modes are left available the rest of the time.
+
 ## Buttons Outside the 8x8 Grid
 
 The table uses the Launchpad Pro MK3 Programmer layout numbers. Buttons outside
@@ -298,6 +340,7 @@ action listed here is the behavior implemented by this script.
 
 ## References
 
+- [Image-Line forum: Novation Launchpad Pro](https://forum.image-line.com/viewtopic.php?f=1914&t=145029)
 - [Launchpad Pro MK3 hardware overview](https://userguides.novationmusic.com/hc/en-gb/articles/25494505681042-Launchpad-Pro-MK3-hardware-overview)
 - [Launchpad Pro MK3 Programmer's Reference Guide](https://fael-downloads-prod.focusrite.com/customer/prod/s3fs-public/downloads/LPP3_prog_ref_guide_200415.pdf)
 - [Image-Line FL Studio MIDI settings](https://www.image-line.com/fl-studio-learning/fl-studio-online-manual/html/envsettings_midi.htm)
