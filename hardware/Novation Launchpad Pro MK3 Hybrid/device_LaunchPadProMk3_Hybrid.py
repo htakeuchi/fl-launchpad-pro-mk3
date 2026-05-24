@@ -67,11 +67,26 @@ LayoutNote = 4
 
 TopModeButtonLeds = {
     3: 0x3F3F3F, # Session / FL control mode
-    4: 0x080808, # Note
-    5: 0x080808, # Chord
-    6: 0x080808,
-    7: 0x080808,
-    8: 0x080808,
+    4: 0x202020, # Note
+    5: 0x202020, # Chord
+    6: 0x202020,
+    7: 0x202020,
+    8: 0x202020,
+}
+
+ControllerModeDirectLeds = {
+    93: 0x3F3F3F, # Session
+    94: 0x202020, # Note
+    95: 0x202020, # Chord
+    96: 0x202020,
+    97: 0x202020,
+    98: 0x202020,
+    3: 0x3F3F3F, # Mirrored fallback for firmware/coordinate differences
+    4: 0x202020,
+    5: 0x202020,
+    6: 0x202020,
+    7: 0x202020,
+    8: 0x202020,
 }
 
 def BuildSelectLayoutSysex(Layout, Page=0):
@@ -214,6 +229,17 @@ class TLaunchPadPro():
         for x, color in TopModeButtonLeds.items():
             self.BtnMap[0][x] = color
 
+    def SendControllerModeButtonLeds(self):
+        if not self.ControllerMode or not device.isAssigned():
+            return
+
+        s = bytearray([0xF0, 0x00, 0x20, 0x29, 0x02, 0x0E, 0x03])
+        for led_index, color in ControllerModeDirectLeds.items():
+            r, g, b = utils.ColorToRGB(color)
+            s.extend([3, led_index, r, g, b])
+        s.append(0xF7)
+        device.midiOutSysex(bytes(s))
+
     def SetControllerMode(self, Enabled):
         if Enabled == self.ControllerMode:
             return
@@ -237,6 +263,7 @@ class TLaunchPadPro():
             self.SetOfs(self.TrackOfs, self.ClipOfs)
             self.ApplyControllerModeButtonLeds()
             device.fullRefresh()
+            self.SendControllerModeButtonLeds()
         else:
             print('Launchpad Pro MK3 Hybrid: normal Launchpad mode on')
             if self.CurLayout == 3:
@@ -676,6 +703,7 @@ class TLaunchPadPro():
                 s[m] = 0xF7;
                 s = s[: m + 1]
                 device.midiOutSysex(bytes(s))
+                self.SendControllerModeButtonLeds()
                 '''
                 sf = ''
                 for y in range(7, len(s)):
