@@ -1,50 +1,248 @@
 # FL Studio Launchpad Pro MK3 Midi/DAW Scripts
 
-Launchpad Pro MK3 for FL Studio の実験用連携スクリプトです。
+Unofficial FL Studio MIDI scripts for the Novation Launchpad Pro MK3.
 
-目的は、通常は Launchpad 本体の Note / Chord / Session などの通常モードを使い、Session ボタンで FL Studio 制御モードへ切り替え、もう一度 Session ボタンで通常モードへ戻すことです。
+The goal is to keep the Launchpad's normal Note, Chord, Sequencer, and Custom
+Modes available while adding an FL Studio control surface that can be entered
+from the Session button. Session switches into FL Control Mode. Press Session
+again, or press Note, Chord, or Custom, to return to normal Launchpad operation.
 
-## 現在の挙動
+This project is not affiliated with Image-Line, Novation, or Focusrite.
 
-- FL Studio 起動時には Programmer Mode へ入りません。
-- `LPProMK3 DAW` 用の補助スクリプトが起動時に DAW Mode をONにし、Sessionボタンを選択可能にします。
-- 通常モード中は、Session ボタン以外のMIDIイベントをFLへ素通しします。
-- 通常モード中に補助スクリプトがSessionボタン/Sessionレイアウト切り替えを受けると、MIDI側スクリプトへ通知し、Programmer Mode をONにして元スクリプト由来のFL制御/LED更新を開始します。
-- FL制御モード中にもう一度 Session ボタンを押すと Programmer Mode をOFFに戻します。
-- FL制御モード中に Note / Chord / Custom ボタンを押すと Programmer Mode をOFFにし、それぞれの通常モードへ戻ります。
-- Customモード中はFactory Custom ModeのMIDIを処理せずFL Studioへ渡します。Customページ番号も保持し、FL制御モードから戻るときに直前のCustomページへ戻します。
-- FL制御モード中はスクリプト側でModeボタン行を明示的に点灯します。Programmer ModeのLED番号差を吸収するため、通常の座標更新に加えて直接RGB SysExでも点灯します。
-- 終了時は MIDI側が Programmer Mode OFF、DAW側が DAW Mode OFF を送信します。
+## Why There Are Two Scripts
 
-## 推奨MIDI設定
+Launchpad Pro MK3 exposes three USB MIDI interfaces:
 
-| Port | Controller Type | Enabled |
+- `LPProMK3 MIDI`: Note, Chord, Custom, Programmer Mode, and general MIDI.
+- `LPProMK3 DAW`: DAW Session integration.
+- `LPProMK3 DIN`: the physical DIN MIDI ports.
+
+Session is only available when DAW Mode is enabled, so this project installs two
+FL Studio controller scripts:
+
+- `NovationLaunchpadProMK3Midi`: the main script for the `LPProMK3 MIDI` port.
+- `NovationLaunchpadProMK3DAW`: a small helper for the `LPProMK3 DAW` port.
+
+The DAW helper turns on Launchpad DAW Mode and forwards Session button events to
+the main MIDI script. The main script then enters or exits FL Control Mode.
+
+## FL Studio MIDI Setup
+
+Quit FL Studio before installing or replacing the scripts.
+
+| FL Studio port | Controller Type | Enabled |
 | --- | --- | --- |
-| Launchpad Pro MK3 LPProMK3 MIDI | NovationLaunchpadProMK3Midi | On |
-| Launchpad Pro MK3 LPProMK3 DAW | NovationLaunchpadProMK3DAW | On |
-| Launchpad Pro MK3 LPProMK3 DIN | None / Generic | Off unless DIN is needed |
+| `Launchpad Pro MK3 LPProMK3 MIDI` | `NovationLaunchpadProMK3Midi` | On |
+| `Launchpad Pro MK3 LPProMK3 DAW` | `NovationLaunchpadProMK3DAW` | On |
+| `Launchpad Pro MK3 LPProMK3 DIN` | None or Generic | Off, unless you need DIN MIDI |
 
-DAWポートには `NovationLaunchpadProMK3DAW` だけを割り当ててください。MIDI側の `NovationLaunchpadProMK3Midi` をDAWポートへ割り当てないでください。
+Do not assign `NovationLaunchpadProMK3Midi` to the DAW port, and do not assign
+`NovationLaunchpadProMK3DAW` to the MIDI port. The two scripts have different
+jobs and are meant to run together.
 
-## インストール
+Enable the matching FL Studio output ports when you want LEDs, DAW Mode, and
+layout switching to work reliably.
 
-FL Studioを終了してから実行します。
+## Installation
+
+Run:
 
 ```sh
 ./scripts/install-to-fl.sh
 ```
 
-コピー先:
+The installer copies the two script folders to:
 
 ```text
 ~/Documents/Image-Line/FL Studio/Settings/Hardware/NovationLaunchpadProMK3Midi
 ~/Documents/Image-Line/FL Studio/Settings/Hardware/NovationLaunchpadProMK3DAW
 ```
 
-必要なスクリプトフォルダだけを `NovationLaunchpadProMK3Midi` / `NovationLaunchpadProMK3DAW` としてコピーします。
+After installation, restart FL Studio and select the controller types shown in
+the setup table above.
 
-## 実機確認ポイント
+## Mode Overview
 
-DAW補助スクリプトを有効にしてもSessionボタンが薄く点灯しない場合は、FL側が `LPProMK3 DAW` の出力ポートを開けていない可能性があります。MIDI SettingsでDAW入力のController Typeと、同名のDAW出力ポート番号を確認してください。
+| Mode | How to enter | What works |
+| --- | --- | --- |
+| Normal Launchpad operation | Start FL Studio, or leave FL Control Mode | Note, Chord, Sequencer, Custom Modes, and other Launchpad firmware features remain available. Most MIDI is passed through to FL Studio. |
+| Note Mode | Press Note while outside FL Control Mode, or press Note while in FL Control Mode to exit | Launchpad's built-in Note/Drum layout sends notes to FL Studio. |
+| Chord Mode | Press Chord while outside FL Control Mode, or press Chord while in FL Control Mode to exit | Launchpad's built-in Chord layout sends notes to FL Studio. |
+| Custom Mode | Press Custom while outside FL Control Mode, or press Custom while in FL Control Mode to exit | Factory or Novation Components custom layouts send their MIDI directly to FL Studio. |
+| FL Control Mode | Press Session | The script switches the Launchpad to Programmer Mode and controls the surface for FL Studio clip/performance control. |
 
-Programmer Mode中の Session 相当イベントは既存スクリプトの `0x5D` を根拠にしています。通常モード中はDAW補助スクリプト側でSessionレイアウト通知またはSessionボタンイベントを受けて、MIDI側へ `device.dispatch` で通知します。
+On startup, the main MIDI script explicitly leaves Programmer Mode off. This
+keeps the Launchpad usable as a normal instrument until you press Session.
+
+## Normal Launchpad Operation
+
+In normal operation, this script only intercepts Session because Session is used
+as the FL Control Mode switch. Other Launchpad controls are left to the hardware
+or passed through to FL Studio.
+
+### Note Mode
+
+Note Mode is the Launchpad's own Note/Drum layout. The script does not transform
+notes in this mode, so FL Studio receives the musical MIDI generated by the
+Launchpad.
+
+### Chord Mode
+
+Chord Mode is the Launchpad's own Chord layout. The script does not transform
+chord output in this mode.
+
+### Sequencer Mode
+
+Sequencer Mode remains a Launchpad firmware feature in normal operation. The
+script does not implement an FL Studio sequencer workflow.
+
+### Custom Mode
+
+Custom Mode is passed through to FL Studio. This is useful for Factory Custom
+Modes and layouts made in Novation Components.
+
+For example, Factory Custom Mode 1 sends CC fader data. Use FL Studio's normal
+controller linking or MIDI learn features to map those CC messages to mixer
+faders, plugin parameters, or other controls. The script does not consume or
+reinterpret Custom Mode messages while outside FL Control Mode.
+
+The last selected Custom page is remembered. If you enter FL Control Mode from a
+Custom page and then press Custom to leave, the script returns to Custom Mode
+instead of forcing Note Mode.
+
+## FL Control Mode
+
+Press Session to enter FL Control Mode.
+
+When FL Control Mode is active, the main MIDI script:
+
+- switches Launchpad Pro MK3 into Programmer Mode;
+- clears and redraws the surface LEDs;
+- uses the 8x8 pad grid for FL Studio live clip/performance control;
+- uses the right scene-launch column and bottom track-control row as extra
+  performance controls;
+- forwards channel pressure and poly pressure as FL Studio special CC data;
+- turns Programmer Mode off again when you leave.
+
+Press Session again to return to the last remembered normal Launchpad mode.
+Press Note, Chord, or Custom to leave FL Control Mode directly into that mode.
+
+### 8x8 Pad Grid
+
+The 8x8 grid launches FL Studio live clips or performance blocks. LED feedback is
+driven by FL Studio's playlist/live clip state.
+
+Velocity is preserved for clip triggering unless Velocity Lock is enabled. When
+Velocity Lock is enabled, non-zero pad hits are forced to full velocity.
+
+### Scene and Column Triggers
+
+The script uses more than the central 8x8 grid in FL Control Mode:
+
+- The right scene-launch column, CC `89`, `79`, `69`, `59`, `49`, `39`, `29`,
+  and `19`, works as a row/track trigger area.
+- The bottom track-control row, CC `1` through `8`, works as a column/scene
+  trigger area.
+
+These areas are part of the Launchpad Programmer layout, not the regular Note or
+Custom layouts.
+
+### Navigation
+
+Navigation buttons move the visible FL control area:
+
+| Button | Programmer CC | FL Control Mode function |
+| --- | --- | --- |
+| Left navigation | `91` | Move the clip/page offset left. Moving left before the first clip reaches track properties and custom map pages. |
+| Right navigation | `92` | Move the clip/page offset right. |
+| Up navigation | `80` | Move the track offset up. |
+| Down navigation | `70` | Move the track offset down. |
+
+Holding a navigation button repeats the movement. Holding all four navigation
+buttons toggles page-sized movement and resets the offsets.
+
+### Track Properties Page
+
+Move left before clip slot 0 to reach the track properties page. On that page,
+the 8x8 grid edits per-track live mode properties, including:
+
+- position snap;
+- trigger snap;
+- loop mode;
+- trigger mode.
+
+The left side of the grid also displays track activity meters.
+
+### FL Map Pages
+
+Move further left to reach the bundled FL Studio map pages. These are inherited
+from the original Launchpad-style FL Studio script layout files:
+
+| Page file | Layout |
+| --- | --- |
+| `Page1.scr` | Chromatic Keyboard |
+| `Page2.scr` | Melodic and Slicex layout |
+| `Page3.scr` | FPC, 4 Selectors, 4 Faders |
+| `Page4.scr` | 8 Faders vertical |
+| `Page5.scr` | 8 Faders horizontal |
+| `Page6.scr` | Gross Beat controller |
+| `Page7.scr` | XY controller |
+| `Page8.scr` | Aeolian layout |
+| `Page9.scr` | Harmonic layout |
+| `Page10.scr` | Tempo control |
+| `Page11.scr` | System layout |
+
+These pages are separate from Launchpad's hardware Custom Mode pages.
+
+## Buttons Outside the 8x8 Grid
+
+The table uses the Launchpad Pro MK3 Programmer layout numbers. Buttons outside
+the 8x8 grid send Control Change messages in Programmer Mode.
+
+| Hardware control | Programmer CC | Normal operation | FL Control Mode |
+| --- | --- | --- | --- |
+| Shift | `90` | Handled by Launchpad firmware where applicable | Not assigned by this script |
+| Left navigation | `91` | Hardware or pass-through behavior | Clip/page offset left |
+| Right navigation | `92` | Hardware or pass-through behavior | Clip/page offset right |
+| Session | `93` | Enter FL Control Mode | Exit FL Control Mode |
+| Note | `94` | Launchpad Note Mode | Exit to Note Mode |
+| Chord | `95` | Launchpad Chord Mode | Exit to Chord Mode |
+| Custom | `96` | Launchpad Custom Mode | Exit to Custom Mode |
+| Sequencer | `97` | Launchpad Sequencer Mode | Scene/column launch modifier |
+| Projects / Save | `98` | Launchpad Projects/Save behavior | Scene+ / column launch modifier |
+| Novation logo LED | `99` | LED only | LED only, not a button |
+| Up navigation | `80` | Hardware or pass-through behavior | Track offset up |
+| Down navigation | `70` | Hardware or pass-through behavior | Track offset down |
+| Clear | `60` | Hardware or pass-through behavior | Tap Tempo |
+| Duplicate | `50` | Hardware or pass-through behavior | Tempo Nudge + |
+| Quantise | `40` | Hardware or pass-through behavior | Tempo Nudge - |
+| Fixed Length | `30` | Hardware or pass-through behavior | Velocity Lock |
+| Play | `20` | Hardware or pass-through behavior | Sends a legacy Launchpad layout request; not mapped to FL Play |
+| Record / Capture MIDI | `10` | Hardware or pass-through behavior | FL Studio Stop |
+| Right scene-launch column | `89`, `79`, `69`, `59`, `49`, `39`, `29`, `19` | Hardware or pass-through behavior | Row/track trigger area |
+| Bottom track-control row | `1` through `8` | Hardware or pass-through behavior | Column/scene trigger area |
+| Track select row | `101` through `108` | Hardware or pass-through behavior | Not assigned by this script |
+| Ableton track buttons outside CC `1` through `8` | Varies by layout | Hardware or pass-through behavior | Not assigned by this script |
+| Setup | Hardware settings button | Opens Launchpad settings when the hardware allows it | Not handled while Programmer Mode is active; leave FL Control Mode first |
+
+Some FL Control Mode button names come from the original FL Studio performance
+script internals. If a hardware label and the FL action feel unrelated, the FL
+action listed here is the behavior implemented by this script.
+
+## Known Notes
+
+- FL Control Mode uses Programmer Mode, so normal Launchpad firmware functions
+  are temporarily unavailable until you leave FL Control Mode.
+- Session requires DAW Mode. If the Session button does not light or does not
+  respond, check that the `LPProMK3 DAW` input and output ports are enabled and
+  assigned to `NovationLaunchpadProMK3DAW`.
+- The `LPProMK3 DIN` port is not required unless you intentionally route MIDI
+  through the Launchpad's DIN connectors.
+- This script currently focuses on switching cleanly between Launchpad hardware
+  modes and FL Studio performance control. It is not a full replacement for every
+  Ableton-oriented control printed on the Launchpad surface.
+
+## References
+
+- [Launchpad Pro MK3 hardware overview](https://userguides.novationmusic.com/hc/en-gb/articles/25494505681042-Launchpad-Pro-MK3-hardware-overview)
+- [Launchpad Pro MK3 Programmer's Reference Guide](https://fael-downloads-prod.focusrite.com/customer/prod/s3fs-public/downloads/LPP3_prog_ref_guide_200415.pdf)
