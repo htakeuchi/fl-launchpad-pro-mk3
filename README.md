@@ -41,7 +41,7 @@ FL Studioを終了してから実行します。
 ~/Documents/Image-Line/FL Studio/Settings/Hardware/NovationLaunchpadProMK3DAW
 ```
 
-インストール時に旧フォルダ `Novation Launchpad Pro MK3 Hybrid` / `Novation Launchpad Pro MK3 Hybrid DAW` / `NovationLaunchpadProMK3Hybrid` / `NovationLaunchpadProMK3HybridDAW` は削除され、`reg.xml` の `ScriptFolder` 名も `NovationLaunchpadProMK3Midi` / `NovationLaunchpadProMK3DAW` へ更新されます。
+必要なスクリプトフォルダだけを `NovationLaunchpadProMK3Midi` / `NovationLaunchpadProMK3DAW` としてコピーします。
 
 ## 実機確認ポイント
 
