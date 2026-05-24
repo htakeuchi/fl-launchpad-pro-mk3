@@ -7,10 +7,11 @@ Launchpad Pro MK3 for FL Studio の実験用ハイブリッドスクリプトで
 ## 現在の挙動
 
 - FL Studio 起動時には Programmer Mode へ入りません。
+- FL Studio 起動時に DAW Mode をONにし、Sessionボタンを選択可能にします。
 - 通常モード中は、Session ボタン以外のMIDIイベントをFLへ素通しします。
-- Session ボタンの `0x5D` イベントを受けると Programmer Mode をONにし、元スクリプト由来のFL制御/LED更新を開始します。
+- 通常モード中にSessionレイアウトへの切り替えSysExを受けると Programmer Mode をONにし、元スクリプト由来のFL制御/LED更新を開始します。
 - FL制御モード中にもう一度 Session ボタンを押すと Programmer Mode をOFFに戻します。
-- 終了時も Programmer Mode OFF を送信します。
+- 終了時は Programmer Mode OFF と DAW Mode OFF を送信します。
 
 ## 推奨MIDI設定
 
@@ -38,7 +39,6 @@ FL Studioを終了してから実行します。
 
 ## 実機確認ポイント
 
-通常モード中に Session ボタンが `LPProMK3 MIDI` ポートへ出ない場合、このスクリプト単体では通常モードからFL制御モードへ入れません。その場合は、`LPProMK3 DAW` 側でSession押下だけを受ける補助スクリプトを追加する必要があります。
+通常モード中にSessionレイアウト切り替えSysExが `LPProMK3 MIDI` ポートへ出ない場合、このスクリプト単体では通常モードからFL制御モードへ入れません。その場合は、`LPProMK3 DAW` 側でSession押下だけを受ける補助スクリプトを追加する必要があります。
 
-この点は仕様上の不確定要素です。Programmer Mode中の Session 相当イベントは既存スクリプトの `0x5D` を根拠にしていますが、通常モード中の送信先ポートは実機で確認してください。
-
+この点は仕様上の不確定要素です。Programmer Mode中の Session 相当イベントは既存スクリプトの `0x5D` を根拠にしていますが、通常モード中のレイアウト切り替え通知の送信先ポートは実機で確認してください。

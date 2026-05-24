@@ -50,6 +50,15 @@ Div127 = 1 / 127
 SysexIdentityRequest = bytes([0xF0, 0x7E, 0x7F, 0x06, 0x01, 0xF7])
 SysexProgrammerModeOn = bytes([0xF0, 0x00, 0x20, 0x29, 0x02, 0x0E, 0x0E, 0x01, 0xF7])
 SysexProgrammerModeOff = bytes([0xF0, 0x00, 0x20, 0x29, 0x02, 0x0E, 0x0E, 0x00, 0xF7])
+SysexDawModeOn = bytes([0xF0, 0x00, 0x20, 0x29, 0x02, 0x0E, 0x10, 0x01, 0xF7])
+SysexDawModeOff = bytes([0xF0, 0x00, 0x20, 0x29, 0x02, 0x0E, 0x10, 0x00, 0xF7])
+
+LayoutSession = 0
+LayoutChord = 2
+LayoutNote = 4
+
+def BuildSelectLayoutSysex(Layout, Page=0):
+    return bytes([0xF0, 0x00, 0x20, 0x29, 0x02, 0x0E, 0x00, Layout, Page, 0x00, 0xF7])
 
 MaxPads = PadsW * PadsH
 NumBtns = 12
@@ -112,6 +121,8 @@ class TLaunchPadPro():
         self.BlinkLight = 2
         self.CurLayout = 0
         self.ControllerMode = False
+        self.LastStandaloneLayout = LayoutNote
+        self.SuppressNextSessionLayout = False
 
         self.BtnMapMode = 0 #animation
         self.BtnMapModeRefCount = 0
@@ -143,9 +154,16 @@ class TLaunchPadPro():
         if event.status == midi.MIDI_BEGINSYSEX:
             print ('midi in sysex', len(event.sysex), event.sysex[0], event.sysex[1], event.sysex[2], event.sysex[3], event.sysex[4], event.sysex[5], event.sysex[6], event.sysex[7], event.sysex[8], event.sysex[9]) #, event.sysex[10], event.sysex[11], event.sysex[12], event.sysex[13], event.sysex[14], event.sysex[15], event.sysex[16])
             #layout change
-            if (len(event.sysex) == 11) & (event.sysex[5] == 0x0E):
+            if (len(event.sysex) == 11) & (event.sysex[5] == 0x0E) & (event.sysex[6] == 0x00):
                 print('layout change')
                 self.CurLayout = event.sysex[7]
+                if self.CurLayout == LayoutSession:
+                    if self.SuppressNextSessionLayout:
+                        self.SuppressNextSessionLayout = False
+                    elif not self.ControllerMode:
+                        self.SetControllerMode(True)
+                elif not self.ControllerMode:
+                    self.LastStandaloneLayout = self.CurLayout
             event.handled = True
         else:
             event.handled = False
@@ -186,12 +204,15 @@ class TLaunchPadPro():
             print('Launchpad Pro MK3 Hybrid: normal Launchpad mode on')
             if self.CurLayout == 3:
                 self.SwitchLedsOff()
+            self.SuppressNextSessionLayout = True
             self.CurLayout = 0
             self.Reset()
             playlist.liveDisplayZone(-1, -1, -1, -1)
             playlist.lockDisplayZone(0, False)
             device.stopRepeatMidiEvent()
             device.midiOutSysex(SysexProgrammerModeOff)
+            device.midiOutSysex(SysexDawModeOn)
+            device.midiOutSysex(BuildSelectLayoutSysex(self.LastStandaloneLayout))
 
     def OnMidiMsg(self, event):
         print (event.status, event.data1, event.data2)
@@ -794,6 +815,7 @@ class TLaunchPadPro():
         if device.isAssigned():
             device.midiOutSysex(SysexIdentityRequest)
             device.midiOutSysex(SysexProgrammerModeOff)
+            device.midiOutSysex(SysexDawModeOn)
             self.CurLayout = 0
 
         # load mapping
@@ -815,6 +837,7 @@ class TLaunchPadPro():
             self.ControllerMode = False
             # set back to normal Launchpad modes
             device.midiOutSysex(SysexProgrammerModeOff)
+            device.midiOutSysex(SysexDawModeOff)
 
     def FixColor(self, Color):
 
