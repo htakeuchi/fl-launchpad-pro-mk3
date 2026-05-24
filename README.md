@@ -30,11 +30,20 @@ the main MIDI script. The main script then enters or exits FL Control Mode.
 
 Quit FL Studio before installing or replacing the scripts.
 
+Use the MIDI settings like this:
+
+![Annotated FL Studio MIDI settings for Launchpad Pro MK3](docs/fl-studio-midi-settings.png)
+
 | FL Studio port | Controller Type | Enabled |
 | --- | --- | --- |
 | `Launchpad Pro MK3 LPProMK3 MIDI` | `NovationLaunchpadProMK3Midi` | On |
 | `Launchpad Pro MK3 LPProMK3 DAW` | `NovationLaunchpadProMK3DAW` | On |
 | `Launchpad Pro MK3 LPProMK3 DIN` | None or Generic | Off, unless you need DIN MIDI |
+
+The port numbers in the image are only examples. The important rule is that each
+Launchpad interface uses the same FL Studio port number on both Input and
+Output. In other words, the `LPProMK3 MIDI` input and output should match each
+other, and the `LPProMK3 DAW` input and output should match each other.
 
 Do not assign `NovationLaunchpadProMK3Midi` to the DAW port, and do not assign
 `NovationLaunchpadProMK3DAW` to the MIDI port. The two scripts have different
@@ -45,7 +54,12 @@ layout switching to work reliably.
 
 ## Installation
 
-Run:
+### macOS Installer Script
+
+The included installer script is macOS-only. It copies the scripts into the
+default FL Studio user data folder under your macOS Documents folder.
+
+Run this from the repository root:
 
 ```sh
 ./scripts/install-to-fl.sh
@@ -60,6 +74,46 @@ The installer copies the two script folders to:
 
 After installation, restart FL Studio and select the controller types shown in
 the setup table above.
+
+### Manual Installation
+
+Use manual installation on Windows, when your FL Studio user data folder is in a
+custom location, or when you do not want to use the macOS script.
+
+1. Find your FL Studio user data folder in `Options > File settings > User data
+   folder`.
+2. Open the `FL Studio/Settings/Hardware` folder inside that user data folder.
+   With FL Studio's default user data location this is usually:
+
+   ```text
+   macOS:
+   ~/Documents/Image-Line/FL Studio/Settings/Hardware
+
+   Windows:
+   %USERPROFILE%\Documents\Image-Line\FL Studio\Settings\Hardware
+   ```
+
+3. Copy these repository folders into `Hardware`:
+
+   ```text
+   hardware/NovationLaunchpadProMK3Midi
+   hardware/NovationLaunchpadProMK3DAW
+   ```
+
+4. The final installed folder names must be:
+
+   ```text
+   <User data folder>/FL Studio/Settings/Hardware/NovationLaunchpadProMK3Midi
+   <User data folder>/FL Studio/Settings/Hardware/NovationLaunchpadProMK3DAW
+   ```
+
+5. Restart FL Studio.
+6. Open `Options > MIDI settings`, then assign the `LPProMK3 MIDI` and
+   `LPProMK3 DAW` input/output ports as shown in the MIDI setup section.
+
+If you are replacing an older copy, remove the old installed
+`NovationLaunchpadProMK3Midi` and `NovationLaunchpadProMK3DAW` folders before
+copying the new ones.
 
 ## Mode Overview
 
@@ -246,3 +300,5 @@ action listed here is the behavior implemented by this script.
 
 - [Launchpad Pro MK3 hardware overview](https://userguides.novationmusic.com/hc/en-gb/articles/25494505681042-Launchpad-Pro-MK3-hardware-overview)
 - [Launchpad Pro MK3 Programmer's Reference Guide](https://fael-downloads-prod.focusrite.com/customer/prod/s3fs-public/downloads/LPP3_prog_ref_guide_200415.pdf)
+- [Image-Line FL Studio MIDI settings](https://www.image-line.com/fl-studio-learning/fl-studio-online-manual/html/envsettings_midi.htm)
+- [Image-Line FL Studio MIDI scripting](https://www.image-line.com/fl-studio-learning/fl-studio-beta-online-manual/html/midi_scripting.htm)
