@@ -1,4 +1,4 @@
-# name=NovationLaunchpadProMK3HybridDAW
+# name=NovationLaunchpadProMK3DAW
 # url=
 # supportedDevices=LPProMK3 DAW
 
@@ -10,17 +10,17 @@ SessionButton = 0x5D
 SysexDawModeOn = bytes([0xF0, 0x00, 0x20, 0x29, 0x02, 0x0E, 0x10, 0x01, 0xF7])
 SysexDawModeOff = bytes([0xF0, 0x00, 0x20, 0x29, 0x02, 0x0E, 0x10, 0x00, 0xF7])
 
-HybridDispatchStatus = 0xF4
-HybridDispatchHeader = [0xF0, 0x00, 0x20, 0x29, 0x7D]
-HybridCommandToggleControllerMode = 0x01
-HybridCommandEnterControllerMode = 0x02
+BridgeDispatchStatus = 0xF4
+BridgeDispatchHeader = [0xF0, 0x00, 0x20, 0x29, 0x7D]
+BridgeCommandToggleControllerMode = 0x01
+BridgeCommandEnterControllerMode = 0x02
 
 LayoutSession = 0
 
 
-def DispatchToHybridMidiScript(command):
-    msg = bytearray(HybridDispatchHeader + [command, 0xF7])
-    device.dispatch(-1, HybridDispatchStatus, bytes(msg))
+def DispatchToMidiScript(command):
+    msg = bytearray(BridgeDispatchHeader + [command, 0xF7])
+    device.dispatch(-1, BridgeDispatchStatus, bytes(msg))
 
 
 def IsSessionButton(event):
@@ -44,13 +44,13 @@ def IsLayoutChange(event, layout):
 
 def OnInit():
     if device.isAssigned():
-        print('NovationLaunchpadProMK3HybridDAW: DAW mode on')
+        print('NovationLaunchpadProMK3DAW: DAW mode on')
         device.midiOutSysex(SysexDawModeOn)
 
 
 def OnDeInit():
     if device.isAssigned():
-        print('NovationLaunchpadProMK3HybridDAW: DAW mode off')
+        print('NovationLaunchpadProMK3DAW: DAW mode off')
         device.midiOutSysex(SysexDawModeOff)
 
 
@@ -58,7 +58,7 @@ def OnMidiMsg(event):
     if IsSessionButton(event):
         event.handled = True
         if event.data2 > 0:
-            DispatchToHybridMidiScript(HybridCommandToggleControllerMode)
+            DispatchToMidiScript(BridgeCommandToggleControllerMode)
         return
 
     event.handled = False
@@ -67,7 +67,7 @@ def OnMidiMsg(event):
 def OnMidiIn(event):
     if IsLayoutChange(event, LayoutSession):
         event.handled = True
-        DispatchToHybridMidiScript(HybridCommandEnterControllerMode)
+        DispatchToMidiScript(BridgeCommandEnterControllerMode)
         return
 
     event.handled = False
@@ -75,4 +75,4 @@ def OnMidiIn(event):
 
 def OnSysEx(event):
     if IsLayoutChange(event, LayoutSession):
-        DispatchToHybridMidiScript(HybridCommandEnterControllerMode)
+        DispatchToMidiScript(BridgeCommandEnterControllerMode)

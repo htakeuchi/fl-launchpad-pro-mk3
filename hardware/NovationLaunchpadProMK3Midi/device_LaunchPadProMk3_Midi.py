@@ -1,7 +1,7 @@
-# name=NovationLaunchpadProMK3Hybrid
+# name=NovationLaunchpadProMK3Midi
 # url=
 # supportedDevices=LPProMK3 MIDI
-# receiveFrom=NovationLaunchpadProMK3HybridDAW
+# receiveFrom=NovationLaunchpadProMK3DAW
 
 import patterns
 import mixer
@@ -57,10 +57,10 @@ SysexProgrammerModeOff = bytes([0xF0, 0x00, 0x20, 0x29, 0x02, 0x0E, 0x0E, 0x00, 
 SysexDawModeOn = bytes([0xF0, 0x00, 0x20, 0x29, 0x02, 0x0E, 0x10, 0x01, 0xF7])
 SysexDawModeOff = bytes([0xF0, 0x00, 0x20, 0x29, 0x02, 0x0E, 0x10, 0x00, 0xF7])
 
-HybridDispatchStatus = 0xF4
-HybridDispatchHeader = [0xF0, 0x00, 0x20, 0x29, 0x7D]
-HybridCommandToggleControllerMode = 0x01
-HybridCommandEnterControllerMode = 0x02
+BridgeDispatchStatus = 0xF4
+BridgeDispatchHeader = [0xF0, 0x00, 0x20, 0x29, 0x7D]
+BridgeCommandToggleControllerMode = 0x01
+BridgeCommandEnterControllerMode = 0x02
 
 LayoutSession = 0
 LayoutChord = 2
@@ -186,12 +186,12 @@ class TLaunchPadPro():
                     return
 
     def OnMidiIn(self, event):
-        if event.status == HybridDispatchStatus:
-            if len(event.sysex) >= 7 and list(event.sysex[0:5]) == HybridDispatchHeader:
+        if event.status == BridgeDispatchStatus:
+            if len(event.sysex) >= 7 and list(event.sysex[0:5]) == BridgeDispatchHeader:
                 command = event.sysex[5]
-                if command == HybridCommandToggleControllerMode:
+                if command == BridgeCommandToggleControllerMode:
                     self.SetControllerMode(not self.ControllerMode)
-                elif command == HybridCommandEnterControllerMode:
+                elif command == BridgeCommandEnterControllerMode:
                     self.SetControllerMode(True)
                 event.handled = True
                 return
@@ -266,7 +266,7 @@ class TLaunchPadPro():
             return
 
         if Enabled:
-            print('NovationLaunchpadProMK3Hybrid: FL control mode on')
+            print('NovationLaunchpadProMK3Midi: FL control mode on')
             device.midiOutSysex(SysexIdentityRequest)
             device.midiOutSysex(SysexProgrammerModeOn)
             self.CurLayout = 3
@@ -280,7 +280,7 @@ class TLaunchPadPro():
             device.fullRefresh()
             self.SendControllerModeButtonLeds()
         else:
-            print('NovationLaunchpadProMK3Hybrid: normal Launchpad mode on')
+            print('NovationLaunchpadProMK3Midi: normal Launchpad mode on')
             if self.CurLayout == 3:
                 self.SwitchLedsOff()
             self.SuppressNextSessionLayout = True

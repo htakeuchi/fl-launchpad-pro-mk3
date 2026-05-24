@@ -1,6 +1,6 @@
-# FL Studio Launchpad Pro MK3 Hybrid Script
+# FL Studio Launchpad Pro MK3 Midi/DAW Scripts
 
-Launchpad Pro MK3 for FL Studio の実験用ハイブリッドスクリプトです。
+Launchpad Pro MK3 for FL Studio の実験用連携スクリプトです。
 
 目的は、通常は Launchpad 本体の Note / Chord / Session などの通常モードを使い、Session ボタンで FL Studio 制御モードへ切り替え、もう一度 Session ボタンで通常モードへ戻すことです。
 
@@ -20,11 +20,11 @@ Launchpad Pro MK3 for FL Studio の実験用ハイブリッドスクリプトで
 
 | Port | Controller Type | Enabled |
 | --- | --- | --- |
-| Launchpad Pro MK3 LPProMK3 MIDI | NovationLaunchpadProMK3Hybrid | On |
-| Launchpad Pro MK3 LPProMK3 DAW | NovationLaunchpadProMK3HybridDAW | On |
+| Launchpad Pro MK3 LPProMK3 MIDI | NovationLaunchpadProMK3Midi | On |
+| Launchpad Pro MK3 LPProMK3 DAW | NovationLaunchpadProMK3DAW | On |
 | Launchpad Pro MK3 LPProMK3 DIN | None / Generic | Off unless DIN is needed |
 
-DAWポートには `NovationLaunchpadProMK3HybridDAW` だけを割り当ててください。MIDI側の `NovationLaunchpadProMK3Hybrid` をDAWポートへ割り当てないでください。
+DAWポートには `NovationLaunchpadProMK3DAW` だけを割り当ててください。MIDI側の `NovationLaunchpadProMK3Midi` をDAWポートへ割り当てないでください。
 
 ## インストール
 
@@ -37,11 +37,11 @@ FL Studioを終了してから実行します。
 コピー先:
 
 ```text
-~/Documents/Image-Line/FL Studio/Settings/Hardware/NovationLaunchpadProMK3Hybrid
-~/Documents/Image-Line/FL Studio/Settings/Hardware/NovationLaunchpadProMK3HybridDAW
+~/Documents/Image-Line/FL Studio/Settings/Hardware/NovationLaunchpadProMK3Midi
+~/Documents/Image-Line/FL Studio/Settings/Hardware/NovationLaunchpadProMK3DAW
 ```
 
-インストール時に旧フォルダ `Novation Launchpad Pro MK3 Hybrid` / `Novation Launchpad Pro MK3 Hybrid DAW` は削除され、`reg.xml` の `ScriptFolder` 名もスペースなしへ更新されます。
+インストール時に旧フォルダ `Novation Launchpad Pro MK3 Hybrid` / `Novation Launchpad Pro MK3 Hybrid DAW` / `NovationLaunchpadProMK3Hybrid` / `NovationLaunchpadProMK3HybridDAW` は削除され、`reg.xml` の `ScriptFolder` 名も `NovationLaunchpadProMK3Midi` / `NovationLaunchpadProMK3DAW` へ更新されます。
 
 ## 実機確認ポイント
 
