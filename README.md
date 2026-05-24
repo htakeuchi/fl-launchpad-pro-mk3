@@ -7,21 +7,21 @@ Launchpad Pro MK3 for FL Studio の実験用ハイブリッドスクリプトで
 ## 現在の挙動
 
 - FL Studio 起動時には Programmer Mode へ入りません。
-- FL Studio 起動時に DAW Mode をONにし、Sessionボタンを選択可能にします。
+- `LPProMK3 DAW` 用の補助スクリプトが起動時に DAW Mode をONにし、Sessionボタンを選択可能にします。
 - 通常モード中は、Session ボタン以外のMIDIイベントをFLへ素通しします。
-- 通常モード中にSessionレイアウトへの切り替えSysExを受けると Programmer Mode をONにし、元スクリプト由来のFL制御/LED更新を開始します。
+- 通常モード中に補助スクリプトがSessionボタン/Sessionレイアウト切り替えを受けると、MIDI側スクリプトへ通知し、Programmer Mode をONにして元スクリプト由来のFL制御/LED更新を開始します。
 - FL制御モード中にもう一度 Session ボタンを押すと Programmer Mode をOFFに戻します。
-- 終了時は Programmer Mode OFF と DAW Mode OFF を送信します。
+- 終了時は MIDI側が Programmer Mode OFF、DAW側が DAW Mode OFF を送信します。
 
 ## 推奨MIDI設定
 
 | Port | Controller Type | Enabled |
 | --- | --- | --- |
 | Launchpad Pro MK3 LPProMK3 MIDI | Novation Launchpad Pro MK3 Hybrid | On |
-| Launchpad Pro MK3 LPProMK3 DAW | Generic Controller | On, or Off if unstable |
+| Launchpad Pro MK3 LPProMK3 DAW | Novation Launchpad Pro MK3 Hybrid DAW | On |
 | Launchpad Pro MK3 LPProMK3 DIN | None / Generic | Off unless DIN is needed |
 
-DAWポートにこのHybridスクリプトを割り当てないでください。このスクリプトは `LPProMK3 MIDI` 用です。
+DAWポートには `Novation Launchpad Pro MK3 Hybrid DAW` だけを割り当ててください。MIDI側の `Novation Launchpad Pro MK3 Hybrid` をDAWポートへ割り当てないでください。
 
 ## インストール
 
@@ -39,6 +39,6 @@ FL Studioを終了してから実行します。
 
 ## 実機確認ポイント
 
-通常モード中にSessionレイアウト切り替えSysExが `LPProMK3 MIDI` ポートへ出ない場合、このスクリプト単体では通常モードからFL制御モードへ入れません。その場合は、`LPProMK3 DAW` 側でSession押下だけを受ける補助スクリプトを追加する必要があります。
+DAW補助スクリプトを有効にしてもSessionボタンが薄く点灯しない場合は、FL側が `LPProMK3 DAW` の出力ポートを開けていない可能性があります。MIDI SettingsでDAW入力のController Typeと、同名のDAW出力ポート番号を確認してください。
 
-この点は仕様上の不確定要素です。Programmer Mode中の Session 相当イベントは既存スクリプトの `0x5D` を根拠にしていますが、通常モード中のレイアウト切り替え通知の送信先ポートは実機で確認してください。
+Programmer Mode中の Session 相当イベントは既存スクリプトの `0x5D` を根拠にしています。通常モード中はDAW補助スクリプト側でSessionレイアウト通知またはSessionボタンイベントを受けて、MIDI側へ `device.dispatch` で通知します。

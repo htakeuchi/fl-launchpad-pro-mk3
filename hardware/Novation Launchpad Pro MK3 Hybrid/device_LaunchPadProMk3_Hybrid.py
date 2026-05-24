@@ -1,6 +1,7 @@
 # name=Novation Launchpad Pro MK3 Hybrid
 # url=
 # supportedDevices=LPProMK3 MIDI
+# receiveFrom=Novation Launchpad Pro MK3 Hybrid DAW
 
 import patterns
 import mixer
@@ -52,6 +53,11 @@ SysexProgrammerModeOn = bytes([0xF0, 0x00, 0x20, 0x29, 0x02, 0x0E, 0x0E, 0x01, 0
 SysexProgrammerModeOff = bytes([0xF0, 0x00, 0x20, 0x29, 0x02, 0x0E, 0x0E, 0x00, 0xF7])
 SysexDawModeOn = bytes([0xF0, 0x00, 0x20, 0x29, 0x02, 0x0E, 0x10, 0x01, 0xF7])
 SysexDawModeOff = bytes([0xF0, 0x00, 0x20, 0x29, 0x02, 0x0E, 0x10, 0x00, 0xF7])
+
+HybridDispatchStatus = 0xF4
+HybridDispatchHeader = [0xF0, 0x00, 0x20, 0x29, 0x7D]
+HybridCommandToggleControllerMode = 0x01
+HybridCommandEnterControllerMode = 0x02
 
 LayoutSession = 0
 LayoutChord = 2
@@ -151,6 +157,16 @@ class TLaunchPadPro():
                     return
 
     def OnMidiIn(self, event):
+        if event.status == HybridDispatchStatus:
+            if len(event.sysex) >= 7 and list(event.sysex[0:5]) == HybridDispatchHeader:
+                command = event.sysex[5]
+                if command == HybridCommandToggleControllerMode:
+                    self.SetControllerMode(not self.ControllerMode)
+                elif command == HybridCommandEnterControllerMode:
+                    self.SetControllerMode(True)
+                event.handled = True
+                return
+
         if event.status == midi.MIDI_BEGINSYSEX:
             print ('midi in sysex', len(event.sysex), event.sysex[0], event.sysex[1], event.sysex[2], event.sysex[3], event.sysex[4], event.sysex[5], event.sysex[6], event.sysex[7], event.sysex[8], event.sysex[9]) #, event.sysex[10], event.sysex[11], event.sysex[12], event.sysex[13], event.sysex[14], event.sysex[15], event.sysex[16])
             #layout change
