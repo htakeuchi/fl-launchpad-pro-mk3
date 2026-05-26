@@ -56,20 +56,28 @@ class FakePatterns(types.ModuleType):
 
 
 class FakeChannels(types.ModuleType):
-    def __init__(self):
+    def __init__(self, count=1, selected=0):
         super().__init__("channels")
+        self.count = count
+        self.selected = selected
         self.grid = {(0, 0): 1, (0, 3): 1}
         self.step_params = {}
         self.set_grid_calls = []
 
     def channelCount(self):
-        return 1
+        return self.count
 
     def isGridBitAssigned(self, index):
-        return index == 0
+        return 0 <= index < self.count
 
     def getChannelIndex(self, index):
         return index
+
+    def selectedChannel(self, *args):
+        return self.selected
+
+    def getChannelColor(self, index):
+        return (0x20 << 16) | (0x10 << 8) | (0x08 + index)
 
     def getGridBit(self, index, step):
         return self.grid.get((index, step), 0)
@@ -91,6 +99,38 @@ class FakeChannels(types.ModuleType):
 class RaisingChannels(FakeChannels):
     def setGridBit(self, index, step, value):
         raise AssertionError("setGridBit should not be called")
+
+
+class FakeTransport(types.ModuleType):
+    def __init__(self, midi_module, playing=False):
+        super().__init__("transport")
+        self.midi = midi_module
+        self.playing = playing
+        self.started = 0
+        self.stopped = 0
+
+    def isPlaying(self):
+        return self.midi.PM_Playing if self.playing else 0
+
+    def start(self):
+        self.playing = True
+        self.started += 1
+
+    def stop(self):
+        self.playing = False
+        self.stopped += 1
+
+
+class FakeMixer(types.ModuleType):
+    def __init__(self, song_step_pos=-1):
+        super().__init__("mixer")
+        self.song_step_pos = song_step_pos
+
+    def getSongStepPos(self):
+        return self.song_step_pos
+
+    def getSongTickPos(self, tick_type):
+        return 0
 
 
 def make_midi_module():
@@ -130,30 +170,46 @@ def make_module(name, **attrs):
 
 
 class DeviceScriptTestCase(unittest.TestCase):
-    def load_device_script(self, patterns_module=None, channels_module=None):
+    def load_device_script(
+        self,
+        patterns_module=None,
+        channels_module=None,
+        mixer_module=None,
+        transport_module=None,
+        device_module=None,
+    ):
         patterns_module = patterns_module or FakePatterns()
         channels_module = channels_module or FakeChannels()
+        midi_module = make_midi_module()
+        mixer_module = mixer_module or FakeMixer()
+        transport_module = transport_module or FakeTransport(midi_module)
+        device_module = device_module or make_module(
+            "device",
+            isAssigned=lambda: False,
+            createRefreshThread=lambda: None,
+            destroyRefreshThread=lambda: None,
+            fullRefresh=lambda: None,
+            midiOutSysex=lambda data: None,
+            stopRepeatMidiEvent=lambda: None,
+        )
 
         fakes = {
             "patterns": patterns_module,
             "channels": channels_module,
-            "mixer": make_module("mixer", getSongStepPos=lambda: -1),
-            "device": make_module(
-                "device",
-                isAssigned=lambda: False,
-                createRefreshThread=lambda: None,
-                destroyRefreshThread=lambda: None,
-                fullRefresh=lambda: None,
-                midiOutSysex=lambda data: None,
-                stopRepeatMidiEvent=lambda: None,
-            ),
-            "transport": make_module("transport", isPlaying=lambda: 0, start=lambda: None, stop=lambda: None),
+            "mixer": mixer_module,
+            "device": device_module,
+            "transport": transport_module,
             "arrangement": make_module("arrangement"),
             "general": make_module("general", saveUndo=lambda *args: None, getVersion=lambda: 40),
             "launchMapPages": make_module("launchMapPages"),
-            "playlist": make_module("playlist"),
+            "playlist": make_module(
+                "playlist",
+                trackCount=lambda: 8,
+                liveDisplayZone=lambda *args: None,
+                lockDisplayZone=lambda *args: None,
+            ),
             "ui": make_module("ui", getVersion=lambda: 40, crDisplayRect=lambda *args: None),
-            "midi": make_midi_module(),
+            "midi": midi_module,
             "utils": make_utils_module(),
         }
 
