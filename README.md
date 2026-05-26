@@ -333,7 +333,7 @@ the 8x8 grid send Control Change messages in Programmer Mode.
 
 | Hardware control | Programmer CC | Normal operation | FL Control Mode |
 | --- | --- | --- | --- |
-| Shift | `90` | Handled by Launchpad firmware where applicable | Modifier for Duplicate / Double |
+| Shift | `90` | Handled by Launchpad firmware where applicable | Reserved modifier for disabled Double support |
 | Left navigation | `91` | Hardware or pass-through behavior | Clip/page offset left; Step Mode moves 16 steps left |
 | Right navigation | `92` | Hardware or pass-through behavior | Clip/page offset right; Step Mode moves 16 steps right |
 | Session | `93` | Enter FL Control Mode | Exit FL Control Mode |
@@ -360,6 +360,32 @@ the 8x8 grid send Control Change messages in Programmer Mode.
 Some FL Control Mode button names come from the original FL Studio performance
 script internals. If a hardware label and the FL action feel unrelated, the FL
 action listed here is the behavior implemented by this script.
+
+## Development Diagnostics
+
+The main MIDI script can run a non-destructive capability probe inside FL
+Studio. The probe only runs when the installed script folder contains a
+`capability_probe_request.json` file. It writes one JSON line to
+`capability_probe_results.jsonl`, then renames the request file to
+`capability_probe_request.json.last`.
+
+From this repository, prepare a probe request with:
+
+```sh
+python3 scripts/request-fl-capability-probe.py --install
+```
+
+Then reload the MIDI script in FL Studio or restart FL Studio. To wait for a
+result from a running FL Studio instance:
+
+```sh
+python3 scripts/request-fl-capability-probe.py --install --wait 30
+```
+
+The probe records API availability such as `patterns.setPatternLength`,
+`patterns.incrementPatternLength`, `patterns.getPatternLength`, FL's reported
+version, and public names exposed by the `patterns` module. It does not write
+steps or change project data.
 
 ## Known Notes
 

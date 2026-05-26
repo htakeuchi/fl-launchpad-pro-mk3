@@ -16,7 +16,9 @@ import ui
 
 import midi
 import utils
+import json
 import math
+import os
 import time
 
 MaxInt = 2147483647
@@ -65,6 +67,9 @@ BridgeDispatchStatus = 0xF4
 BridgeDispatchHeader = [0xF0, 0x00, 0x20, 0x29, 0x7D]
 BridgeCommandToggleControllerMode = 0x01
 BridgeCommandEnterControllerMode = 0x02
+
+CapabilityProbeRequestFile = 'capability_probe_request.json'
+CapabilityProbeResultFile = 'capability_probe_results.jsonl'
 
 LayoutSession = 0
 LayoutChord = 2
@@ -1356,6 +1361,68 @@ class TLaunchPadPro():
         self.Reset()
         device.createRefreshThread()
         self.ControllerMode = False
+        self.RunCapabilityProbeIfRequested()
+
+    def GetScriptDir(self):
+        try:
+            return os.path.dirname(os.path.abspath(__file__))
+        except Exception:
+            return os.path.expanduser('~/Documents/Image-Line/FL Studio/Settings/Hardware/NovationLaunchpadProMK3Midi')
+
+    def ProbeValue(self, Name, Func):
+        try:
+            return {'name': Name, 'ok': True, 'value': Func()}
+        except Exception as exc:
+            return {'name': Name, 'ok': False, 'error': str(exc)}
+
+    def RunCapabilityProbeIfRequested(self):
+        script_dir = self.GetScriptDir()
+        request_path = os.path.join(script_dir, CapabilityProbeRequestFile)
+        result_path = os.path.join(script_dir, CapabilityProbeResultFile)
+        consumed_path = request_path + '.last'
+
+        if not os.path.exists(request_path):
+            return
+
+        request = {}
+        try:
+            with open(request_path, 'r', encoding='utf-8') as request_file:
+                request = json.load(request_file)
+        except Exception as exc:
+            request = {'read_error': str(exc)}
+
+        public_pattern_names = []
+        try:
+            public_pattern_names = sorted([name for name in dir(patterns) if not name.startswith('_')])
+        except Exception:
+            public_pattern_names = []
+
+        probe = {
+            'probe': 'launchpad_capability_probe',
+            'request': request,
+            'time': time.time(),
+            'script': __file__ if '__file__' in globals() else '',
+            'patterns_public_names': public_pattern_names,
+            'checks': [
+                self.ProbeValue('general.getVersion', lambda: general.getVersion()),
+                self.ProbeValue('patterns.patternNumber', lambda: patterns.patternNumber()),
+                self.ProbeValue('patterns.patternMax', lambda: patterns.patternMax()),
+                self.ProbeValue('patterns.getPatternLength', lambda: patterns.getPatternLength(patterns.patternNumber())),
+                self.ProbeValue('has patterns.setPatternLength', lambda: hasattr(patterns, 'setPatternLength')),
+                self.ProbeValue('has patterns.incrementPatternLength', lambda: hasattr(patterns, 'incrementPatternLength')),
+                self.ProbeValue('has patterns.setChannelLoop', lambda: hasattr(patterns, 'setChannelLoop')),
+                self.ProbeValue('channels.channelCount', lambda: channels.channelCount()),
+                self.ProbeValue('ui.getVersion', lambda: ui.getVersion()),
+            ],
+        }
+
+        try:
+            with open(result_path, 'a', encoding='utf-8') as result_file:
+                result_file.write(json.dumps(probe, sort_keys=True) + '\n')
+            os.replace(request_path, consumed_path)
+            print('Launchpad Capability Probe: wrote', result_path)
+        except Exception as exc:
+            print('Launchpad Capability Probe: failed', exc)
 
     def OnDeInit(self):
 
