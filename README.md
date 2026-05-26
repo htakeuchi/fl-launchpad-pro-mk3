@@ -201,6 +201,12 @@ channel taking two Launchpad rows. Each visible channel therefore shows one
 - press a pad to toggle that Channel Rack step on or off;
 - left/right navigation moves by 16 steps;
 - up/down navigation moves by four channels;
+- press Mute or Solo to choose the Track Select row action, then press Track
+  Select 1-8 to toggle mute or solo for Channel Rack channels 1-8;
+- press Mute again while Mute mode is active to clear all mutes on Channel Rack
+  channels 1-8 and return the Track Select row to an inactive state;
+- after soloing a channel from Solo mode, press Solo again to clear the last
+  selected solo;
 - press Note again to leave Step Mode and return to normal Launchpad Note Mode.
 - Shift + Duplicate / Double support is currently disabled. The implementation
   is kept behind a feature flag for a future FL Studio build that exposes a
@@ -215,6 +221,11 @@ Step LEDs use the FL Studio channel color when available. Disabled steps are
 off, and enabled steps are lit in a maximum-brightness version of the channel
 color. The selected Channel Rack channel does not change the pad colors.
 During playback, the currently playing step is lit across all visible channels.
+When Mute or Solo is active, the matching hardware button is brightly lit and
+Track Select buttons 1-8 show the corresponding mute/solo status for Channel
+Rack channels 1-8, independent of the currently visible Step Mode channel page.
+Inactive available channels use a dimmed version of the FL Studio channel color
+so the target channel remains identifiable.
 
 ### 8x8 Pad Grid
 
@@ -352,8 +363,8 @@ the 8x8 grid send Control Change messages in Programmer Mode.
 | Play | `20` | Hardware or pass-through behavior | FL Studio Play; stops playback when already playing; LED lights while playing |
 | Record / Capture MIDI | `10` | Hardware or pass-through behavior | FL Studio Stop |
 | Right scene-launch column | `89`, `79`, `69`, `59`, `49`, `39`, `29`, `19` | Hardware or pass-through behavior | Row/track trigger area |
-| Bottom track-control row | `1` through `8` | Hardware or pass-through behavior | Column/scene trigger area |
-| Track select row | `101` through `108` | Hardware or pass-through behavior | Not assigned by this script |
+| Bottom track-control row | `1` through `8` | Hardware or pass-through behavior | Column/scene trigger area; Step Mode uses Mute `2` and Solo `3` as Track Select row action selectors |
+| Track select row | `101` through `108` | Hardware or pass-through behavior | Step Mode uses `101` through `108` for Channel Rack channels 1-8 when Mute or Solo is active |
 | Ableton track buttons outside CC `1` through `8` | Varies by layout | Hardware or pass-through behavior | Not assigned by this script |
 | Setup | Hardware settings button | Opens Launchpad settings when the hardware allows it | Not handled while Programmer Mode is active; leave FL Control Mode first |
 

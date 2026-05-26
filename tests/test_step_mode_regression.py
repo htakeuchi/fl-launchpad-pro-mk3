@@ -87,6 +87,85 @@ class StepModeRegressionTests(DeviceScriptTestCase):
         launchpad.HandleStepSequencerMidi(MidiEvent(module.midi.MIDI_CONTROLCHANGE, 0x50, 127))
         self.assertEqual(launchpad.StepChannelOfs, 0)
 
+    def test_step_mute_button_overlays_track_select_buttons(self):
+        channels_module = FakeChannels(count=8)
+        module, _, _ = self.load_device_script(channels_module=channels_module)
+        launchpad = module.LaunchPadPro
+        launchpad.ControllerMode = True
+        launchpad.SurfaceMode = module.SurfaceModeStepSequencer
+        launchpad.StepChannelOfs = 4
+
+        mode_event = MidiEvent(module.midi.MIDI_CONTROLCHANGE, module.TrackControlMuteButton, 127)
+        launchpad.OnMidiMsg(mode_event)
+
+        self.assertTrue(mode_event.handled)
+        self.assertEqual(launchpad.StepTrackControlMode, module.StepTrackControlMute)
+        self.assertEqual(launchpad.BtnMap[9][module.TrackControlMuteButton], module.StepMuteLed)
+        self.assertEqual(launchpad.BtnMap[9][module.TrackControlSoloButton], module.StepSoloDimLed)
+
+        track_event = MidiEvent(module.midi.MIDI_CONTROLCHANGE, module.TrackSelectFirstButton, 127)
+        launchpad.OnMidiMsg(track_event)
+
+        self.assertTrue(track_event.handled)
+        self.assertIn(0, channels_module.muted)
+        self.assertEqual(channels_module.selected, 0)
+        self.assertEqual(channels_module.mute_calls[-1], (0, -1, False))
+        self.assertEqual(launchpad.GetStepTrackSelectButtonColor(module.TrackSelectFirstButton), module.StepMuteLed)
+
+    def test_step_solo_button_overlays_track_select_buttons(self):
+        channels_module = FakeChannels(count=8)
+        module, _, _ = self.load_device_script(channels_module=channels_module)
+        launchpad = module.LaunchPadPro
+        launchpad.ControllerMode = True
+        launchpad.SurfaceMode = module.SurfaceModeStepSequencer
+        launchpad.StepChannelOfs = 4
+
+        launchpad.OnMidiMsg(MidiEvent(module.midi.MIDI_CONTROLCHANGE, module.TrackControlSoloButton, 127))
+        track_event = MidiEvent(module.midi.MIDI_CONTROLCHANGE, module.TrackSelectLastButton, 127)
+        launchpad.OnMidiMsg(track_event)
+
+        self.assertTrue(track_event.handled)
+        self.assertIn(7, channels_module.soloed)
+        self.assertEqual(channels_module.selected, 7)
+        self.assertEqual(channels_module.solo_calls[-1], (7, -1, False))
+        self.assertEqual(launchpad.GetStepTrackSelectButtonColor(module.TrackSelectLastButton), module.StepSoloLed)
+
+    def test_step_mute_button_repress_clears_all_track_select_mutes(self):
+        channels_module = FakeChannels(count=8)
+        channels_module.muted.update({0, 2, 7})
+        module, _, _ = self.load_device_script(channels_module=channels_module)
+        launchpad = module.LaunchPadPro
+        launchpad.ControllerMode = True
+        launchpad.SurfaceMode = module.SurfaceModeStepSequencer
+
+        launchpad.OnMidiMsg(MidiEvent(module.midi.MIDI_CONTROLCHANGE, module.TrackControlMuteButton, 127))
+        self.assertEqual(launchpad.GetStepTrackSelectButtonColor(module.TrackSelectFirstButton), module.StepMuteLed)
+
+        launchpad.OnMidiMsg(MidiEvent(module.midi.MIDI_CONTROLCHANGE, module.TrackControlMuteButton, 127))
+
+        self.assertEqual(channels_module.muted, set())
+        self.assertEqual(channels_module.mute_calls[-3:], [(0, 0, False), (2, 0, False), (7, 0, False)])
+        self.assertEqual(launchpad.StepTrackControlMode, module.StepTrackControlNone)
+        self.assertEqual(launchpad.GetStepTrackSelectButtonColor(module.TrackSelectFirstButton), 0)
+
+    def test_step_solo_button_repress_clears_last_selected_solo(self):
+        channels_module = FakeChannels(count=8)
+        module, _, _ = self.load_device_script(channels_module=channels_module)
+        launchpad = module.LaunchPadPro
+        launchpad.ControllerMode = True
+        launchpad.SurfaceMode = module.SurfaceModeStepSequencer
+
+        launchpad.OnMidiMsg(MidiEvent(module.midi.MIDI_CONTROLCHANGE, module.TrackControlSoloButton, 127))
+        launchpad.OnMidiMsg(MidiEvent(module.midi.MIDI_CONTROLCHANGE, module.TrackSelectFirstButton + 5, 127))
+        self.assertIn(5, channels_module.soloed)
+
+        launchpad.OnMidiMsg(MidiEvent(module.midi.MIDI_CONTROLCHANGE, module.TrackControlSoloButton, 127))
+
+        self.assertNotIn(5, channels_module.soloed)
+        self.assertEqual(channels_module.solo_calls[-1], (5, -1, False))
+        self.assertEqual(launchpad.StepTrackControlMode, module.StepTrackControlNone)
+        self.assertEqual(launchpad.GetStepTrackSelectButtonColor(module.TrackSelectFirstButton + 5), 0)
+
     def test_play_button_toggles_transport_and_led_in_step_mode(self):
         midi_module = __import__("types").SimpleNamespace(PM_Playing=1)
         transport_module = FakeTransport(midi_module)

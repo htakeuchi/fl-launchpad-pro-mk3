@@ -63,6 +63,10 @@ class FakeChannels(types.ModuleType):
         self.grid = {(0, 0): 1, (0, 3): 1}
         self.step_params = {}
         self.set_grid_calls = []
+        self.muted = set()
+        self.soloed = set()
+        self.mute_calls = []
+        self.solo_calls = []
 
     def channelCount(self):
         return self.count
@@ -94,6 +98,36 @@ class FakeChannels(types.ModuleType):
 
     def selectOneChannel(self, index):
         self.selected = index
+
+    def isChannelMuted(self, index, useGlobalIndex=False):
+        return index in self.muted
+
+    def muteChannel(self, index, value=-1, useGlobalIndex=False):
+        self.mute_calls.append((index, value, useGlobalIndex))
+        if value < 0:
+            if index in self.muted:
+                self.muted.remove(index)
+            else:
+                self.muted.add(index)
+        elif value:
+            self.muted.add(index)
+        else:
+            self.muted.discard(index)
+
+    def isChannelSolo(self, index, useGlobalIndex=False):
+        return index in self.soloed
+
+    def soloChannel(self, index, value=-1, useGlobalIndex=False):
+        self.solo_calls.append((index, value, useGlobalIndex))
+        if value < 0:
+            if index in self.soloed:
+                self.soloed.remove(index)
+            else:
+                self.soloed.add(index)
+        elif value:
+            self.soloed.add(index)
+        else:
+            self.soloed.discard(index)
 
 
 class RaisingChannels(FakeChannels):

@@ -55,6 +55,10 @@ NoteButton = 0x5E
 ChordButton = 0x5F
 CustomButton = 0x60
 DuplicateButton = 0x32
+TrackControlMuteButton = 0x02
+TrackControlSoloButton = 0x03
+TrackSelectFirstButton = 0x65
+TrackSelectLastButton = 0x6C
 Div127 = 1 / 127
 
 SysexIdentityRequest = bytes([0xF0, 0x7E, 0x7F, 0x06, 0x01, 0xF7])
@@ -79,12 +83,20 @@ LayoutNote = 4
 SurfaceModePerformance = 0
 SurfaceModeStepSequencer = 1
 StepDoubleEnabled = False
+StepTrackControlNone = 0
+StepTrackControlMute = 1
+StepTrackControlSolo = 2
+StepTrackControlChannelCount = 8
 StepChannelsPerPage = 4
 StepRowsPerChannel = 2
 StepStepsPerChannel = 16
 StepMaxSteps = 512
 PlayLedPlaying = 0x003F00
 StepPlayheadLed = 0x3F3F3F
+StepMuteLed = 0x3F1800
+StepMuteDimLed = 0x080300
+StepSoloLed = 0x00083F
+StepSoloDimLed = 0x000108
 StepParameterIndexes = (0, 1, 2, 3, 4, 5, 6, 7)
 
 StepChannelFallbackColors = (
@@ -198,6 +210,8 @@ class TLaunchPadPro():
         self.StepChannelOfs = 0
         self.StepOfs = 0
         self.StepPlayingStep = None
+        self.StepTrackControlMode = StepTrackControlNone
+        self.StepLastSoloChannel = -1
         self.LastStandaloneLayout = LayoutNote
         self.LastStandalonePage = 0
         self.SuppressNextSessionLayout = False
@@ -277,6 +291,18 @@ class TLaunchPadPro():
     def IsDuplicateButton(self, event):
         return (event.midiId in [midi.MIDI_NOTEON, midi.MIDI_NOTEOFF, midi.MIDI_CONTROLCHANGE]) and (event.data1 == DuplicateButton)
 
+    def IsStepTrackControlButton(self, event):
+        return (
+            event.midiId in [midi.MIDI_NOTEON, midi.MIDI_NOTEOFF, midi.MIDI_CONTROLCHANGE] and
+            event.data1 in [TrackControlMuteButton, TrackControlSoloButton]
+        )
+
+    def IsStepTrackSelectButton(self, event):
+        return (
+            event.midiId in [midi.MIDI_NOTEON, midi.MIDI_NOTEOFF, midi.MIDI_CONTROLCHANGE] and
+            utils.InterNoSwap(event.data1, TrackSelectFirstButton, TrackSelectLastButton)
+        )
+
     def IsModeExitButton(self, event):
         return (event.midiId in [midi.MIDI_NOTEON, midi.MIDI_NOTEOFF, midi.MIDI_CONTROLCHANGE]) and (event.data1 in [ChordButton, CustomButton])
 
@@ -304,8 +330,11 @@ class TLaunchPadPro():
             return
 
         s = bytearray([0xF0, 0x00, 0x20, 0x29, 0x02, 0x0E, 0x03])
-        for led_index, color in ControllerModeDirectLeds.items():
-            if self.SurfaceMode == SurfaceModeStepSequencer and led_index in [94, 4]:
+        direct_leds = dict(ControllerModeDirectLeds)
+        if self.SurfaceMode == SurfaceModeStepSequencer:
+            direct_leds.update(self.GetStepTrackControlDirectLeds())
+        for led_index, color in direct_leds.items():
+            if self.SurfaceMode == SurfaceModeStepSequencer and led_index == 94:
                 color = 0x003F3F
             r, g, b = utils.ColorToRGB(color)
             s.extend([3, led_index, r, g, b])
@@ -344,6 +373,8 @@ class TLaunchPadPro():
     def SetStepSequencerMode(self, Enabled):
         if Enabled:
             self.SurfaceMode = SurfaceModeStepSequencer
+            self.StepTrackControlMode = StepTrackControlNone
+            self.StepLastSoloChannel = -1
             self.SyncStepChannelOffsetToSelected()
             self.NormalizeStepSequencerOffsets()
             self.Reset()
@@ -394,6 +425,8 @@ class TLaunchPadPro():
             if self.CurLayout == 3:
                 self.SwitchLedsOff()
             self.SurfaceMode = SurfaceModePerformance
+            self.StepTrackControlMode = StepTrackControlNone
+            self.StepLastSoloChannel = -1
             self.SuppressNextSessionLayout = True
             self.CurLayout = 0
             self.Reset()
@@ -983,6 +1016,111 @@ class TLaunchPadPro():
 
         return 0
 
+    def GetStepTrackControlButtonColor(self, ButtonIndex):
+        if ButtonIndex == TrackControlMuteButton:
+            return StepMuteLed if self.StepTrackControlMode == StepTrackControlMute else StepMuteDimLed
+        if ButtonIndex == TrackControlSoloButton:
+            return StepSoloLed if self.StepTrackControlMode == StepTrackControlSolo else StepSoloDimLed
+        return 0
+
+    def StepTrackSelectButtonToChannel(self, ButtonIndex):
+        channel_index = ButtonIndex - TrackSelectFirstButton
+        if not utils.InterNoSwap(channel_index, 0, StepTrackControlChannelCount - 1):
+            return -1
+        return channel_index
+
+    def GetStepTrackSelectButtonColor(self, ButtonIndex):
+        channel_index = self.StepTrackSelectButtonToChannel(ButtonIndex)
+        if channel_index < 0:
+            return 0
+        if not utils.InterNoSwap(channel_index, 0, channels.channelCount() - 1):
+            return 0
+        if self.StepTrackControlMode == StepTrackControlMute:
+            if channels.isChannelMuted(channel_index):
+                return StepMuteLed
+            return self.ScaleLaunchpadColor(self.GetStepChannelColor(channel_index), 0.25)
+        if self.StepTrackControlMode == StepTrackControlSolo:
+            if channels.isChannelSolo(channel_index):
+                return StepSoloLed
+            return self.ScaleLaunchpadColor(self.GetStepChannelColor(channel_index), 0.25)
+        return 0
+
+    def GetStepTrackControlDirectLeds(self):
+        leds = {}
+        for button_index in range(1, 9):
+            leds[button_index] = self.GetStepTrackControlButtonColor(button_index)
+        for button_index in range(TrackSelectFirstButton, TrackSelectLastButton + 1):
+            leds[button_index] = self.GetStepTrackSelectButtonColor(button_index)
+        return leds
+
+    def ApplyStepTrackControlLeds(self):
+        for button_index in range(1, 9):
+            self.BtnMap[9][button_index] = self.GetStepTrackControlButtonColor(button_index)
+
+    def SetStepTrackControlMode(self, Mode):
+        if self.StepTrackControlMode == Mode:
+            if Mode == StepTrackControlMute:
+                self.ClearStepMuteChannels()
+            elif Mode == StepTrackControlSolo:
+                self.ClearLastStepSoloChannel()
+            self.StepTrackControlMode = StepTrackControlNone
+        else:
+            self.StepTrackControlMode = Mode
+        self.UpdateStepSequencerView(False)
+
+    def ClearStepMuteChannels(self):
+        cleared_count = 0
+        for channel_index in range(0, StepTrackControlChannelCount):
+            if not utils.InterNoSwap(channel_index, 0, channels.channelCount() - 1):
+                continue
+            if not channels.isChannelMuted(channel_index):
+                continue
+            if cleared_count == 0:
+                general.saveUndo('Launchpad Pro MK3: Step channel mute clear', midi.UF_PR)
+            channels.muteChannel(channel_index, 0)
+            cleared_count += 1
+        return cleared_count
+
+    def ClearLastStepSoloChannel(self):
+        channel_index = self.StepLastSoloChannel
+        if not utils.InterNoSwap(channel_index, 0, StepTrackControlChannelCount - 1):
+            return False
+        if not utils.InterNoSwap(channel_index, 0, channels.channelCount() - 1):
+            self.StepLastSoloChannel = -1
+            return False
+        if not channels.isChannelSolo(channel_index):
+            self.StepLastSoloChannel = -1
+            return False
+
+        general.saveUndo('Launchpad Pro MK3: Step channel solo clear', midi.UF_PR)
+        channels.soloChannel(channel_index)
+        self.StepLastSoloChannel = -1
+        return True
+
+    def TriggerStepTrackSelectButton(self, ButtonIndex):
+        if self.StepTrackControlMode == StepTrackControlNone:
+            return
+
+        channel_index = self.StepTrackSelectButtonToChannel(ButtonIndex)
+        if channel_index < 0:
+            return
+        if not utils.InterNoSwap(channel_index, 0, channels.channelCount() - 1):
+            return
+
+        channels.selectOneChannel(channel_index)
+        if self.StepTrackControlMode == StepTrackControlMute:
+            general.saveUndo('Launchpad Pro MK3: Step channel mute', midi.UF_PR)
+            channels.muteChannel(channel_index)
+        elif self.StepTrackControlMode == StepTrackControlSolo:
+            general.saveUndo('Launchpad Pro MK3: Step channel solo', midi.UF_PR)
+            channels.soloChannel(channel_index)
+            self.StepLastSoloChannel = channel_index
+        else:
+            return
+
+        self.UpdateStepSequencerView(False)
+        self.FocusStepSequencerRect()
+
     def GetStepPlayingStep(self):
         if transport.isPlaying() != midi.PM_Playing:
             return None
@@ -1040,6 +1178,7 @@ class TLaunchPadPro():
         self.BtnMap[1][0] = 0x083F08 if self.StepChannelOfs > 0 else 0x010801
         self.BtnMap[2][0] = 0x083F08 if self.StepChannelOfs < max(0, channels.channelCount() - StepChannelsPerPage) else 0x010801
 
+        self.ApplyStepTrackControlLeds()
         self.ApplyControllerModeButtonLeds()
         if Force:
             device.fullRefresh()
@@ -1196,6 +1335,15 @@ class TLaunchPadPro():
 
         if self.IsPlayButton(event):
             self.TogglePlayback(event)
+            return
+        if self.IsStepTrackControlButton(event):
+            if event.data1 == TrackControlMuteButton:
+                self.SetStepTrackControlMode(StepTrackControlMute)
+            elif event.data1 == TrackControlSoloButton:
+                self.SetStepTrackControlMode(StepTrackControlSolo)
+            return
+        if self.IsStepTrackSelectButton(event):
+            self.TriggerStepTrackSelectButton(event.data1)
             return
         if event.data1 == 0x50:
             self.MoveStepChannelPage(-1)
