@@ -363,6 +363,13 @@ action listed here is the behavior implemented by this script.
 
 ## Development Diagnostics
 
+Local unit tests use Python's standard `unittest` runner and stub the FL Studio
+MIDI scripting modules:
+
+```sh
+python3 -m unittest discover -s tests -v
+```
+
 The main MIDI script can run a non-destructive capability probe inside FL
 Studio. The probe only runs when the installed script folder contains a
 `capability_probe_request.json` file. It writes one JSON line to
