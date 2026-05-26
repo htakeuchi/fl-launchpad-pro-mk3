@@ -202,6 +202,9 @@ channel taking two Launchpad rows. Each visible channel therefore shows one
 - left/right navigation moves by 16 steps;
 - up/down navigation moves by four channels;
 - press Note again to leave Step Mode and return to normal Launchpad Note Mode.
+- Shift + Duplicate / Double support is currently disabled. The implementation
+  is kept behind a feature flag for a future FL Studio build that exposes a
+  safe pattern length API to MIDI scripts.
 
 After returning to normal Launchpad Note Mode, enter Step Mode again with
 Session, then Note. The Launchpad firmware handles Note Mode button presses
@@ -211,6 +214,7 @@ as the re-entry trigger.
 Step LEDs use the FL Studio channel color when available. Disabled steps are
 off, and enabled steps are lit in a maximum-brightness version of the channel
 color. The selected Channel Rack channel does not change the pad colors.
+During playback, the currently playing step is lit across all visible channels.
 
 ### 8x8 Pad Grid
 
@@ -329,7 +333,7 @@ the 8x8 grid send Control Change messages in Programmer Mode.
 
 | Hardware control | Programmer CC | Normal operation | FL Control Mode |
 | --- | --- | --- | --- |
-| Shift | `90` | Handled by Launchpad firmware where applicable | Not assigned by this script |
+| Shift | `90` | Handled by Launchpad firmware where applicable | Modifier for Duplicate / Double |
 | Left navigation | `91` | Hardware or pass-through behavior | Clip/page offset left; Step Mode moves 16 steps left |
 | Right navigation | `92` | Hardware or pass-through behavior | Clip/page offset right; Step Mode moves 16 steps right |
 | Session | `93` | Enter FL Control Mode | Exit FL Control Mode |
@@ -342,7 +346,7 @@ the 8x8 grid send Control Change messages in Programmer Mode.
 | Up navigation | `80` | Hardware or pass-through behavior | Track offset up; Step Mode moves four channels up |
 | Down navigation | `70` | Hardware or pass-through behavior | Track offset down; Step Mode moves four channels down |
 | Clear | `60` | Hardware or pass-through behavior | Tap Tempo |
-| Duplicate | `50` | Hardware or pass-through behavior | Tempo Nudge + |
+| Duplicate | `50` | Hardware or pass-through behavior | Tempo Nudge +; Step Mode Double support is currently disabled |
 | Quantise | `40` | Hardware or pass-through behavior | Tempo Nudge - |
 | Fixed Length | `30` | Hardware or pass-through behavior | Velocity Lock |
 | Play | `20` | Hardware or pass-through behavior | FL Studio Play; stops playback when already playing; LED lights while playing |

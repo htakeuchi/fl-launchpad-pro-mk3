@@ -48,9 +48,11 @@ LayH = ClipsH
 PadsStride = 10
 ForbiddenPads = [0, 9, 90, 99] #corners
 SessionButton = 0x5D
+ShiftButton = 0x5A
 NoteButton = 0x5E
 ChordButton = 0x5F
 CustomButton = 0x60
+DuplicateButton = 0x32
 Div127 = 1 / 127
 
 SysexIdentityRequest = bytes([0xF0, 0x7E, 0x7F, 0x06, 0x01, 0xF7])
@@ -71,11 +73,14 @@ LayoutNote = 4
 
 SurfaceModePerformance = 0
 SurfaceModeStepSequencer = 1
+StepDoubleEnabled = False
 StepChannelsPerPage = 4
 StepRowsPerChannel = 2
 StepStepsPerChannel = 16
 StepMaxSteps = 512
 PlayLedPlaying = 0x003F00
+StepPlayheadLed = 0x3F3F3F
+StepParameterIndexes = (0, 1, 2, 3, 4, 5, 6, 7)
 
 StepChannelFallbackColors = (
     0x3F1206,
@@ -187,6 +192,7 @@ class TLaunchPadPro():
         self.SurfaceMode = SurfaceModePerformance
         self.StepChannelOfs = 0
         self.StepOfs = 0
+        self.StepPlayingStep = None
         self.LastStandaloneLayout = LayoutNote
         self.LastStandalonePage = 0
         self.SuppressNextSessionLayout = False
@@ -257,8 +263,14 @@ class TLaunchPadPro():
     def IsSessionButton(self, event):
         return (event.midiId in [midi.MIDI_NOTEON, midi.MIDI_NOTEOFF, midi.MIDI_CONTROLCHANGE]) and (event.data1 == SessionButton)
 
+    def IsShiftButton(self, event):
+        return (event.midiId in [midi.MIDI_NOTEON, midi.MIDI_NOTEOFF, midi.MIDI_CONTROLCHANGE]) and (event.data1 == ShiftButton)
+
     def IsNoteButton(self, event):
         return (event.midiId in [midi.MIDI_NOTEON, midi.MIDI_NOTEOFF, midi.MIDI_CONTROLCHANGE]) and (event.data1 == NoteButton)
+
+    def IsDuplicateButton(self, event):
+        return (event.midiId in [midi.MIDI_NOTEON, midi.MIDI_NOTEOFF, midi.MIDI_CONTROLCHANGE]) and (event.data1 == DuplicateButton)
 
     def IsModeExitButton(self, event):
         return (event.midiId in [midi.MIDI_NOTEON, midi.MIDI_NOTEOFF, midi.MIDI_CONTROLCHANGE]) and (event.data1 in [ChordButton, CustomButton])
@@ -305,6 +317,9 @@ class TLaunchPadPro():
     def IsPlayButton(self, event):
         return (event.midiId in [midi.MIDI_NOTEON, midi.MIDI_NOTEOFF, midi.MIDI_CONTROLCHANGE]) and (event.data1 == 0x14)
 
+    def UpdateShiftState(self, event):
+        self.Shift = (event.midiId != midi.MIDI_NOTEOFF) and (event.data2 > 0)
+
     def TogglePlayback(self, event):
         if event.data2 <= 0:
             return
@@ -312,8 +327,11 @@ class TLaunchPadPro():
             transport.stop()
         else:
             transport.start()
-        self.UpdatePlaybackLed()
-        self.FullRefresh_Btn()
+        if self.IsStepSequencerMode():
+            self.UpdateStepSequencerView(False)
+        else:
+            self.UpdatePlaybackLed()
+            self.FullRefresh_Btn()
 
     def IsStepSequencerMode(self):
         return self.ControllerMode and (self.SurfaceMode == SurfaceModeStepSequencer)
@@ -384,6 +402,18 @@ class TLaunchPadPro():
     def OnMidiMsg(self, event):
         print (event.status, event.data1, event.data2)
         ColT = (0x000000, 0x2F0018 | LPBlink2)
+
+        if self.IsShiftButton(event):
+            self.UpdateShiftState(event)
+            if self.ControllerMode:
+                event.handled = True
+                return
+
+        if StepDoubleEnabled and self.IsStepSequencerMode() and self.IsDuplicateButton(event) and self.Shift:
+            event.handled = True
+            if event.data2 > 0:
+                self.DoubleCurrentStepPatternPage()
+            return
 
         if self.IsStepSequencerMode() and self.IsPlayButton(event):
             event.handled = True
@@ -948,6 +978,33 @@ class TLaunchPadPro():
 
         return 0
 
+    def GetStepPlayingStep(self):
+        if transport.isPlaying() != midi.PM_Playing:
+            return None
+        playing_step = mixer.getSongStepPos()
+        if playing_step < 0:
+            return None
+        return playing_step
+
+    def ApplyStepPlayheadLeds(self, PlayingStep):
+        if PlayingStep is None:
+            return
+        if not utils.InterNoSwap(PlayingStep, self.StepOfs, self.StepOfs + StepStepsPerChannel - 1):
+            return
+
+        relative_step = PlayingStep - self.StepOfs
+        step_row = relative_step // SClipsW
+        step_col = relative_step % SClipsW
+        channel_count = channels.channelCount()
+
+        for channel_pos in range(0, StepChannelsPerPage):
+            channel_index = self.StepChannelOfs + channel_pos
+            if channel_index >= channel_count:
+                continue
+            y = SClipsY + (channel_pos * StepRowsPerChannel) + step_row
+            x = SClipsX + step_col
+            self.BtnMap[y][x] = StepPlayheadLed
+
     def FocusStepSequencerRect(self):
         channel_count = channels.channelCount()
         if device.isAssigned() and channel_count > 0:
@@ -969,6 +1026,9 @@ class TLaunchPadPro():
             for x in range(0, SClipsW):
                 channel_index, step = self.StepPadToChannelStep(x, y)
                 self.BtnMap[SClipsY + y][SClipsX + x] = self.GetStepPadColor(channel_index, step)
+
+        self.StepPlayingStep = self.GetStepPlayingStep()
+        self.ApplyStepPlayheadLeds(self.StepPlayingStep)
 
         self.BtnMap[0][1] = 0x00083F if self.StepOfs > 0 else 0x000108
         self.BtnMap[0][2] = 0x00083F if self.StepOfs < StepMaxSteps - StepStepsPerChannel else 0x000108
@@ -992,6 +1052,114 @@ class TLaunchPadPro():
         self.UpdateStepSequencerView(True)
         self.FocusStepSequencerRect()
 
+    def CopyStepRange(self, SourceStep, DestStep, StepCount):
+        pattern_index = patterns.patternNumber()
+        channel_count = channels.channelCount()
+        active_count = 0
+
+        for channel_index in range(0, channel_count):
+            if not channels.isGridBitAssigned(channel_index):
+                continue
+            global_channel_index = channels.getChannelIndex(channel_index)
+            step_data = []
+            for step_offset in range(0, StepCount):
+                source_step = SourceStep + step_offset
+                active = int(channels.getGridBit(channel_index, source_step) > 0)
+                parameters = []
+                if active > 0:
+                    for parameter in StepParameterIndexes:
+                        parameters.append(channels.getCurrentStepParam(channel_index, source_step, parameter))
+                step_data.append((active, parameters))
+
+            for step_offset in range(0, StepCount):
+                dest_step = DestStep + step_offset
+                active, parameters = step_data[step_offset]
+                channels.setGridBit(channel_index, dest_step, active)
+                if active > 0:
+                    active_count += 1
+                    for parameter_index in range(0, len(StepParameterIndexes)):
+                        channels.setStepParameterByIndex(
+                            global_channel_index,
+                            pattern_index,
+                            dest_step,
+                            StepParameterIndexes[parameter_index],
+                            parameters[parameter_index],
+                            1,
+                        )
+        return active_count
+
+    def GetPatternLengthSteps(self, PatternIndex):
+        return patterns.getPatternLength(PatternIndex)
+
+    def GetCurrentPatternLengthSteps(self):
+        pattern_index = patterns.patternNumber()
+        pattern_length_steps = self.GetPatternLengthSteps(pattern_index)
+        if pattern_length_steps <= 0:
+            pattern_length_steps = self.StepOfs + StepStepsPerChannel
+        return utils.Limited(pattern_length_steps, StepStepsPerChannel, StepMaxSteps)
+
+    def EnsureCurrentPatternLength(self, TargetStepCount):
+        pattern_index = patterns.patternNumber()
+        target_step_count = max(1, TargetStepCount)
+        has_set_pattern_length = hasattr(patterns, 'setPatternLength')
+        has_increment_pattern_length = hasattr(patterns, 'incrementPatternLength')
+        print(
+            'Launchpad Step Double: length before',
+            self.GetPatternLengthSteps(pattern_index),
+            'target steps',
+            target_step_count,
+        )
+        if self.GetPatternLengthSteps(pattern_index) >= TargetStepCount:
+            return True
+
+        if has_set_pattern_length:
+            try:
+                patterns.setPatternLength(pattern_index, target_step_count)
+                print('Launchpad Step Double: after setPatternLength', patterns.getPatternLength(pattern_index))
+                if self.GetPatternLengthSteps(pattern_index) >= TargetStepCount:
+                    return True
+            except Exception as exc:
+                print('Launchpad Step Double: setPatternLength failed', exc)
+        else:
+            print('Launchpad Step Double: setPatternLength unavailable')
+
+        if has_increment_pattern_length:
+            current_step_count = patterns.getPatternLength(pattern_index)
+            try:
+                step_offset = max(1, target_step_count - current_step_count)
+                patterns.incrementPatternLength(pattern_index, step_offset)
+                print('Launchpad Step Double: after incrementPatternLength', patterns.getPatternLength(pattern_index))
+                if self.GetPatternLengthSteps(pattern_index) >= TargetStepCount:
+                    return True
+            except Exception as exc:
+                print('Launchpad Step Double: incrementPatternLength failed', exc)
+        else:
+            print('Launchpad Step Double: incrementPatternLength unavailable')
+
+        print('Launchpad Step Double: direct length API failed')
+        return False
+
+    def DoubleCurrentStepPatternPage(self):
+        source_step = self.StepOfs
+        dest_step = source_step + StepStepsPerChannel
+        current_length_steps = self.GetCurrentPatternLengthSteps()
+        target_length_steps = max(current_length_steps + StepStepsPerChannel, dest_step + StepStepsPerChannel)
+        if target_length_steps > StepMaxSteps:
+            return
+
+        if not self.EnsureCurrentPatternLength(target_length_steps):
+            # In FL Studio 2025, writes beyond getPatternLength() can wrap over steps 1-16.
+            print('Launchpad Step Double: length unavailable, copy skipped')
+            return
+
+        general.saveUndo('Launchpad Pro MK3: Step seq double', midi.UF_PR)
+        active_count = self.CopyStepRange(source_step, dest_step, StepStepsPerChannel)
+        print('Launchpad Step Double: active steps copied', active_count)
+
+        self.StepOfs = utils.Limited(dest_step, 0, StepMaxSteps - StepStepsPerChannel)
+        self.UpdateStepSequencerView(True)
+        self.FocusStepSequencerRect()
+
     def ToggleStepSequencerPad(self, x, y):
         channel_index, step = self.StepPadToChannelStep(x, y)
         if not utils.InterNoSwap(channel_index, 0, channels.channelCount() - 1):
@@ -999,6 +1167,12 @@ class TLaunchPadPro():
         channels.selectOneChannel(channel_index)
         if not channels.isGridBitAssigned(channel_index):
             self.UpdateStepSequencerView(False)
+            return
+        if step >= self.GetCurrentPatternLengthSteps():
+            # Avoid out-of-range step writes for the same wraparound behavior guarded above.
+            print('Launchpad Step Edit: step outside pattern length, edit skipped', step)
+            self.UpdateStepSequencerView(False)
+            self.FocusStepSequencerRect()
             return
 
         general.saveUndo('Launchpad Pro MK3: Step seq edit', midi.UF_PR)
@@ -1074,6 +1248,10 @@ class TLaunchPadPro():
             return
 
         if self.IsStepSequencerMode():
+            current_step = self.GetStepPlayingStep()
+            if current_step != self.StepPlayingStep:
+                self.UpdateStepSequencerView(False)
+                return
             self.ApplyControllerModeButtonLeds()
             self.UpdateBlinking()
             return
