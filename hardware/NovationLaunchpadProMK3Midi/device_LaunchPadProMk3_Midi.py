@@ -75,6 +75,7 @@ StepChannelsPerPage = 4
 StepRowsPerChannel = 2
 StepStepsPerChannel = 16
 StepMaxSteps = 512
+PlayLedPlaying = 0x003F00
 
 StepChannelFallbackColors = (
     0x3F1206,
@@ -279,6 +280,7 @@ class TLaunchPadPro():
             self.BtnMap[0][x] = color
         if self.SurfaceMode == SurfaceModeStepSequencer:
             self.BtnMap[0][4] = 0x003F3F | LPBlink4
+        self.UpdatePlaybackLed()
 
     def SendControllerModeButtonLeds(self):
         if not self.ControllerMode or not device.isAssigned():
@@ -293,6 +295,13 @@ class TLaunchPadPro():
         s.append(0xF7)
         device.midiOutSysex(bytes(s))
 
+    def UpdatePlaybackLed(self):
+        y, x = BtnInfo[Btn_Play].GetYX()
+        if transport.isPlaying() == midi.PM_Playing:
+            self.BtnMap[y][x] = PlayLedPlaying
+        else:
+            self.BtnMap[y][x] = 0
+
     def IsPlayButton(self, event):
         return (event.midiId in [midi.MIDI_NOTEON, midi.MIDI_NOTEOFF, midi.MIDI_CONTROLCHANGE]) and (event.data1 == 0x14)
 
@@ -303,6 +312,8 @@ class TLaunchPadPro():
             transport.stop()
         else:
             transport.start()
+        self.UpdatePlaybackLed()
+        self.FullRefresh_Btn()
 
     def IsStepSequencerMode(self):
         return self.ControllerMode and (self.SurfaceMode == SurfaceModeStepSequencer)

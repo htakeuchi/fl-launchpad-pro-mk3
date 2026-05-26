@@ -345,7 +345,7 @@ the 8x8 grid send Control Change messages in Programmer Mode.
 | Duplicate | `50` | Hardware or pass-through behavior | Tempo Nudge + |
 | Quantise | `40` | Hardware or pass-through behavior | Tempo Nudge - |
 | Fixed Length | `30` | Hardware or pass-through behavior | Velocity Lock |
-| Play | `20` | Hardware or pass-through behavior | FL Studio Play; stops playback when already playing |
+| Play | `20` | Hardware or pass-through behavior | FL Studio Play; stops playback when already playing; LED lights while playing |
 | Record / Capture MIDI | `10` | Hardware or pass-through behavior | FL Studio Stop |
 | Right scene-launch column | `89`, `79`, `69`, `59`, `49`, `39`, `29`, `19` | Hardware or pass-through behavior | Row/track trigger area |
 | Bottom track-control row | `1` through `8` | Hardware or pass-through behavior | Column/scene trigger area |
