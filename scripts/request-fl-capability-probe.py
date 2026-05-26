@@ -69,6 +69,21 @@ def wait_for_result(result_path, request_id, timeout_seconds):
     return None
 
 
+def retire_request_file(request_path, request_id):
+    if not request_path.exists():
+        return
+
+    try:
+        request = json.loads(request_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        request = {}
+
+    if request.get("request_id") != request_id:
+        return
+
+    request_path.replace(request_path.with_name(f"{REQUEST_FILE}.last-run-{request_id}"))
+
+
 def open_fl_studio(app_name):
     subprocess.run(["open", "-a", app_name], check=True)
 
@@ -106,6 +121,7 @@ def main():
         if result is None:
             print(f"timed out waiting for result: {result_path}", file=sys.stderr)
             return 2
+        retire_request_file(request_path, request_id)
         print(json.dumps(result, ensure_ascii=False, sort_keys=True, indent=2))
 
     return 0
