@@ -125,19 +125,19 @@ layout switching to work reliably.
 | Mode | How to enter | What works |
 | --- | --- | --- |
 | Normal Launchpad operation | Start FL Studio, or leave FL Control Mode | Note, Chord, Sequencer, Custom Modes, and other Launchpad firmware features remain available. Most MIDI is passed through to FL Studio. |
-| Note Mode | Press Note while outside FL Control Mode, or press Note while in FL Control Mode to exit | Launchpad's built-in Note/Drum layout sends notes to FL Studio. |
+| Note Mode | Press Note while outside FL Control Mode, or press Note while in Step Mode to leave it | Launchpad's built-in Note/Drum layout sends notes to FL Studio. |
 | Chord Mode | Press Chord while outside FL Control Mode, or press Chord while in FL Control Mode to exit | Launchpad's built-in Chord layout sends notes to FL Studio. |
 | Custom Mode | Press Custom while outside FL Control Mode, or press Custom while in FL Control Mode to exit | Factory or Novation Components custom layouts send their MIDI directly to FL Studio. |
 | FL Control Mode | Press Session | The script switches the Launchpad to Programmer Mode and controls the surface for FL Studio clip/performance control. |
+| Step Mode | Press Session to enter FL Control Mode, then press Note. | The 8x8 grid edits FL Studio Channel Rack steps directly. |
 
 On startup, the main MIDI script explicitly leaves Programmer Mode off. This
 keeps the Launchpad usable as a normal instrument until you press Session.
 
 ## Normal Launchpad Operation
 
-In normal operation, this script only intercepts Session because Session is used
-as the FL Control Mode switch. Other Launchpad controls are left to the hardware
-or passed through to FL Studio.
+In normal operation, this script leaves Launchpad controls to the hardware or
+passes them through to FL Studio. Session is used as the FL Control Mode switch.
 
 ### Note Mode
 
@@ -152,8 +152,11 @@ chord output in this mode.
 
 ### Sequencer Mode
 
-Sequencer Mode remains a Launchpad firmware feature in normal operation. The
-script does not implement an FL Studio sequencer workflow.
+Sequencer Mode remains a Launchpad firmware feature in normal operation.
+
+FL Studio Step Mode is separate from the Launchpad firmware Sequencer Mode. It
+is entered with Note while FL Control Mode is active, and it edits FL Studio's
+Channel Rack step grid.
 
 ### Custom Mode
 
@@ -184,7 +187,30 @@ When FL Control Mode is active, the main MIDI script:
 - turns Programmer Mode off again when you leave.
 
 Press Session again to return to the last remembered normal Launchpad mode.
-Press Note, Chord, or Custom to leave FL Control Mode directly into that mode.
+Press Chord or Custom to leave FL Control Mode directly into that mode. Press
+Note to enter Step Mode.
+
+### Step Mode
+
+Step Mode uses the inner 8x8 pad grid as four Channel Rack rows, with each
+channel taking two Launchpad rows. Each visible channel therefore shows one
+16-step bar:
+
+- top row of a channel: steps 1-8;
+- lower row of the same channel: steps 9-16;
+- press a pad to toggle that Channel Rack step on or off;
+- left/right navigation moves by 16 steps;
+- up/down navigation moves by four channels;
+- press Note again to leave Step Mode and return to normal Launchpad Note Mode.
+
+After returning to normal Launchpad Note Mode, enter Step Mode again with
+Session, then Note. The Launchpad firmware handles Note Mode button presses
+directly, so this script cannot use a second Note press inside normal Note Mode
+as the re-entry trigger.
+
+Step LEDs use the FL Studio channel color when available. Disabled steps are
+off, and enabled steps are lit in a maximum-brightness version of the channel
+color. The selected Channel Rack channel does not change the pad colors.
 
 ### 8x8 Pad Grid
 
@@ -304,22 +330,22 @@ the 8x8 grid send Control Change messages in Programmer Mode.
 | Hardware control | Programmer CC | Normal operation | FL Control Mode |
 | --- | --- | --- | --- |
 | Shift | `90` | Handled by Launchpad firmware where applicable | Not assigned by this script |
-| Left navigation | `91` | Hardware or pass-through behavior | Clip/page offset left |
-| Right navigation | `92` | Hardware or pass-through behavior | Clip/page offset right |
+| Left navigation | `91` | Hardware or pass-through behavior | Clip/page offset left; Step Mode moves 16 steps left |
+| Right navigation | `92` | Hardware or pass-through behavior | Clip/page offset right; Step Mode moves 16 steps right |
 | Session | `93` | Enter FL Control Mode | Exit FL Control Mode |
-| Note | `94` | Launchpad Note Mode | Exit to Note Mode |
+| Note | `94` | Launchpad Note Mode | Enter Step Mode; from Step Mode return to Note Mode |
 | Chord | `95` | Launchpad Chord Mode | Exit to Chord Mode |
 | Custom | `96` | Launchpad Custom Mode | Exit to Custom Mode |
 | Sequencer | `97` | Launchpad Sequencer Mode | Scene/column launch modifier |
 | Projects / Save | `98` | Launchpad Projects/Save behavior | Scene+ / column launch modifier |
 | Novation logo LED | `99` | LED only | LED only, not a button |
-| Up navigation | `80` | Hardware or pass-through behavior | Track offset up |
-| Down navigation | `70` | Hardware or pass-through behavior | Track offset down |
+| Up navigation | `80` | Hardware or pass-through behavior | Track offset up; Step Mode moves four channels up |
+| Down navigation | `70` | Hardware or pass-through behavior | Track offset down; Step Mode moves four channels down |
 | Clear | `60` | Hardware or pass-through behavior | Tap Tempo |
 | Duplicate | `50` | Hardware or pass-through behavior | Tempo Nudge + |
 | Quantise | `40` | Hardware or pass-through behavior | Tempo Nudge - |
 | Fixed Length | `30` | Hardware or pass-through behavior | Velocity Lock |
-| Play | `20` | Hardware or pass-through behavior | Sends a legacy Launchpad layout request; not mapped to FL Play |
+| Play | `20` | Hardware or pass-through behavior | FL Studio Play; stops playback when already playing |
 | Record / Capture MIDI | `10` | Hardware or pass-through behavior | FL Studio Stop |
 | Right scene-launch column | `89`, `79`, `69`, `59`, `49`, `39`, `29`, `19` | Hardware or pass-through behavior | Row/track trigger area |
 | Bottom track-control row | `1` through `8` | Hardware or pass-through behavior | Column/scene trigger area |
@@ -341,8 +367,9 @@ action listed here is the behavior implemented by this script.
 - The `LPProMK3 DIN` port is not required unless you intentionally route MIDI
   through the Launchpad's DIN connectors.
 - This script currently focuses on switching cleanly between Launchpad hardware
-  modes and FL Studio performance control. It is not a full replacement for every
-  Ableton-oriented control printed on the Launchpad surface.
+  modes, FL Studio performance control, and the Channel Rack Step Mode. It is
+  not a full replacement for every Ableton-oriented control printed on the
+  Launchpad surface.
 
 ## References
 

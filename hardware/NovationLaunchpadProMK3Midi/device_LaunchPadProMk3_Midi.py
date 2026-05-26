@@ -4,6 +4,7 @@
 # receiveFrom=NovationLaunchpadProMK3DAW
 
 import patterns
+import channels
 import mixer
 import device
 import transport
@@ -11,6 +12,7 @@ import arrangement
 import general
 import launchMapPages
 import playlist
+import ui
 
 import midi
 import utils
@@ -66,6 +68,32 @@ LayoutSession = 0
 LayoutChord = 2
 LayoutCustom = 3
 LayoutNote = 4
+
+SurfaceModePerformance = 0
+SurfaceModeStepSequencer = 1
+StepChannelsPerPage = 4
+StepRowsPerChannel = 2
+StepStepsPerChannel = 16
+StepMaxSteps = 512
+
+StepChannelFallbackColors = (
+    0x3F1206,
+    0x063F18,
+    0x0A243F,
+    0x3F3006,
+    0x3F0A24,
+    0x0A3F3A,
+    0x24123F,
+    0x303F08,
+)
+
+StepSequencerRefreshFlags = (
+    getattr(midi, 'HW_ChannelEvent', 0) |
+    getattr(midi, 'HW_Dirty_ChannelRackGroup', 0) |
+    getattr(midi, 'HW_Dirty_Patterns', 0) |
+    getattr(midi, 'HW_Dirty_Colors', 0) |
+    getattr(midi, 'HW_Dirty_Names', 0)
+)
 
 TopModeButtonLeds = {
     3: 0x3F3F3F, # Session / FL control mode
@@ -155,6 +183,9 @@ class TLaunchPadPro():
         self.BlinkLight = 2
         self.CurLayout = 0
         self.ControllerMode = False
+        self.SurfaceMode = SurfaceModePerformance
+        self.StepChannelOfs = 0
+        self.StepOfs = 0
         self.LastStandaloneLayout = LayoutNote
         self.LastStandalonePage = 0
         self.SuppressNextSessionLayout = False
@@ -225,8 +256,11 @@ class TLaunchPadPro():
     def IsSessionButton(self, event):
         return (event.midiId in [midi.MIDI_NOTEON, midi.MIDI_NOTEOFF, midi.MIDI_CONTROLCHANGE]) and (event.data1 == SessionButton)
 
+    def IsNoteButton(self, event):
+        return (event.midiId in [midi.MIDI_NOTEON, midi.MIDI_NOTEOFF, midi.MIDI_CONTROLCHANGE]) and (event.data1 == NoteButton)
+
     def IsModeExitButton(self, event):
-        return (event.midiId in [midi.MIDI_NOTEON, midi.MIDI_NOTEOFF, midi.MIDI_CONTROLCHANGE]) and (event.data1 in [NoteButton, ChordButton, CustomButton])
+        return (event.midiId in [midi.MIDI_NOTEON, midi.MIDI_NOTEOFF, midi.MIDI_CONTROLCHANGE]) and (event.data1 in [ChordButton, CustomButton])
 
     def SetStandaloneLayoutFromModeButton(self, data1):
         if data1 == NoteButton:
@@ -243,6 +277,8 @@ class TLaunchPadPro():
             return
         for x, color in TopModeButtonLeds.items():
             self.BtnMap[0][x] = color
+        if self.SurfaceMode == SurfaceModeStepSequencer:
+            self.BtnMap[0][4] = 0x003F3F | LPBlink4
 
     def SendControllerModeButtonLeds(self):
         if not self.ControllerMode or not device.isAssigned():
@@ -250,10 +286,44 @@ class TLaunchPadPro():
 
         s = bytearray([0xF0, 0x00, 0x20, 0x29, 0x02, 0x0E, 0x03])
         for led_index, color in ControllerModeDirectLeds.items():
+            if self.SurfaceMode == SurfaceModeStepSequencer and led_index in [94, 4]:
+                color = 0x003F3F
             r, g, b = utils.ColorToRGB(color)
             s.extend([3, led_index, r, g, b])
         s.append(0xF7)
         device.midiOutSysex(bytes(s))
+
+    def IsPlayButton(self, event):
+        return (event.midiId in [midi.MIDI_NOTEON, midi.MIDI_NOTEOFF, midi.MIDI_CONTROLCHANGE]) and (event.data1 == 0x14)
+
+    def TogglePlayback(self, event):
+        if event.data2 <= 0:
+            return
+        if transport.isPlaying() == midi.PM_Playing:
+            transport.stop()
+        else:
+            transport.start()
+
+    def IsStepSequencerMode(self):
+        return self.ControllerMode and (self.SurfaceMode == SurfaceModeStepSequencer)
+
+    def SetStepSequencerMode(self, Enabled):
+        if Enabled:
+            self.SurfaceMode = SurfaceModeStepSequencer
+            self.SyncStepChannelOffsetToSelected()
+            self.NormalizeStepSequencerOffsets()
+            self.Reset()
+            self.SwitchLedsOff()
+            self.UpdateStepSequencerView(True)
+            self.FocusStepSequencerRect()
+        else:
+            self.SurfaceMode = SurfaceModePerformance
+            self.Reset()
+            self.SwitchLedsOff()
+            for n in range(1, len(self.BtnT)):
+                self.SetBtn(n, self.BtnT[n])
+            self.OnUpdateLiveMode(playlist.trackCount())
+            self.SetOfs(self.TrackOfs, self.ClipOfs)
 
     def SetControllerMode(self, Enabled):
         if Enabled == self.ControllerMode:
@@ -267,22 +337,29 @@ class TLaunchPadPro():
 
         if Enabled:
             print('NovationLaunchpadProMK3Midi: FL control mode on')
+            if self.SurfaceMode != SurfaceModeStepSequencer:
+                self.SurfaceMode = SurfaceModePerformance
             device.midiOutSysex(SysexIdentityRequest)
             device.midiOutSysex(SysexProgrammerModeOn)
             self.CurLayout = 3
             self.Reset()
             self.SwitchLedsOff()
-            for n in range(1, len(self.BtnT)):
-                self.SetBtn(n, self.BtnT[n])
-            self.OnUpdateLiveMode(playlist.trackCount())
-            self.SetOfs(self.TrackOfs, self.ClipOfs)
-            self.ApplyControllerModeButtonLeds()
-            device.fullRefresh()
-            self.SendControllerModeButtonLeds()
+            if self.SurfaceMode == SurfaceModeStepSequencer:
+                self.UpdateStepSequencerView(True)
+                self.FocusStepSequencerRect()
+            else:
+                for n in range(1, len(self.BtnT)):
+                    self.SetBtn(n, self.BtnT[n])
+                self.OnUpdateLiveMode(playlist.trackCount())
+                self.SetOfs(self.TrackOfs, self.ClipOfs)
+                self.ApplyControllerModeButtonLeds()
+                device.fullRefresh()
+                self.SendControllerModeButtonLeds()
         else:
             print('NovationLaunchpadProMK3Midi: normal Launchpad mode on')
             if self.CurLayout == 3:
                 self.SwitchLedsOff()
+            self.SurfaceMode = SurfaceModePerformance
             self.SuppressNextSessionLayout = True
             self.CurLayout = 0
             self.Reset()
@@ -297,6 +374,11 @@ class TLaunchPadPro():
         print (event.status, event.data1, event.data2)
         ColT = (0x000000, 0x2F0018 | LPBlink2)
 
+        if self.IsStepSequencerMode() and self.IsPlayButton(event):
+            event.handled = True
+            self.TogglePlayback(event)
+            return
+
         if event.midiChan > 0:
             return
 
@@ -305,6 +387,17 @@ class TLaunchPadPro():
             if event.data2 > 0:
                 self.SetControllerMode(not self.ControllerMode)
             return
+
+        if self.IsNoteButton(event):
+            if self.ControllerMode:
+                event.handled = True
+                if event.data2 > 0:
+                    if self.SurfaceMode == SurfaceModeStepSequencer:
+                        self.SetStandaloneLayoutFromModeButton(event.data1)
+                        self.SetControllerMode(False)
+                    else:
+                        self.SetStepSequencerMode(True)
+                return
 
         if self.ControllerMode and self.IsModeExitButton(event):
             event.handled = True
@@ -315,6 +408,10 @@ class TLaunchPadPro():
 
         if not self.ControllerMode:
             event.handled = False
+            return
+
+        if self.IsStepSequencerMode():
+            self.HandleStepSequencerMidi(event)
             return
 
         if event.midiId == midi.MIDI_CHANAFTERTOUCH:
@@ -399,9 +496,7 @@ class TLaunchPadPro():
 
                     o = int(event.data2 > 0) * 2
                     if n == Btn_Play:
-                        #transport.globalTransport(midi.FPT_Play, o, event.pmeFlags)
-                        device.midiOutSysex(bytes([0xF0, 0x00, 0x20, 0x29, 0x02, 0x0E, 0x00, 0x02, 0x00, 0x00, 0xF7]))
-                        device.midiOutSysex(bytes([0xF0, 0x00, 0x20, 0x29, 0x02, 0x0E, 0x00, 0xF7]))
+                        self.TogglePlayback(event)
                     elif n == Btn_Stop:
                         transport.globalTransport(midi.FPT_Stop, o, event.pmeFlags)
                     elif n == Btn_TapTempo:
@@ -778,10 +873,159 @@ class TLaunchPadPro():
         if not self.ControllerMode:
             return
 
+        if self.IsStepSequencerMode():
+            self.FocusStepSequencerRect()
+            return
+
         if (self.ClipOfs >= 0) & (playlist.getDisplayZone() != 0):
             playlist.liveDisplayZone(self.ClipOfs, self.TrackOfs + 1, self.ClipOfs + PadsW - 1, self.TrackOfs + 1 + PadsH)
         else:
             playlist.liveDisplayZone(-1, -1, -1, -1)
+
+    def StepPadToChannelStep(self, x, y):
+        return self.StepChannelOfs + (y // StepRowsPerChannel), self.StepOfs + ((y % StepRowsPerChannel) * SClipsW) + x
+
+    def SyncStepChannelOffsetToSelected(self):
+        selected_channel = channels.selectedChannel(1)
+        if selected_channel >= 0:
+            self.StepChannelOfs = (selected_channel // StepChannelsPerPage) * StepChannelsPerPage
+
+    def NormalizeStepSequencerOffsets(self):
+        channel_count = channels.channelCount()
+        if channel_count <= 0:
+            self.StepChannelOfs = 0
+            self.StepOfs = 0
+            return
+
+        max_channel_ofs = max(0, channel_count - StepChannelsPerPage)
+        self.StepChannelOfs = utils.Limited(self.StepChannelOfs, 0, max_channel_ofs)
+
+        self.StepOfs = utils.Limited((self.StepOfs // StepStepsPerChannel) * StepStepsPerChannel, 0, StepMaxSteps - StepStepsPerChannel)
+
+    def ScaleLaunchpadColor(self, Color, Scale):
+        r, g, b = utils.ColorToRGB(Color)
+        return utils.RGBToColor(
+            utils.Limited(round(r * Scale), 0, 63),
+            utils.Limited(round(g * Scale), 0, 63),
+            utils.Limited(round(b * Scale), 0, 63),
+        )
+
+    def EnsureVisibleStepColor(self, Color, MinValue):
+        r, g, b = utils.ColorToRGB(Color)
+        peak = max(r, g, b)
+        if peak == 0:
+            return Color
+        if peak >= MinValue:
+            return Color
+        return self.ScaleLaunchpadColor(Color, MinValue / peak)
+
+    def GetStepChannelColor(self, ChannelIndex):
+        color = self.FixColor(channels.getChannelColor(ChannelIndex))
+        r, g, b = utils.ColorToRGB(color)
+        if max(r, g, b) < 8:
+            color = StepChannelFallbackColors[ChannelIndex % len(StepChannelFallbackColors)]
+        return self.EnsureVisibleStepColor(color, 63)
+
+    def GetStepPadColor(self, ChannelIndex, Step):
+        if not utils.InterNoSwap(ChannelIndex, 0, channels.channelCount() - 1):
+            return 0
+
+        base_color = self.GetStepChannelColor(ChannelIndex)
+
+        if channels.isGridBitAssigned(ChannelIndex) and channels.getGridBit(ChannelIndex, Step) > 0:
+            return base_color
+
+        return 0
+
+    def FocusStepSequencerRect(self):
+        channel_count = channels.channelCount()
+        if device.isAssigned() and channel_count > 0:
+            ui.crDisplayRect(
+                self.StepOfs,
+                self.StepChannelOfs,
+                StepStepsPerChannel,
+                min(StepChannelsPerPage, channel_count - self.StepChannelOfs),
+                1000,
+                midi.CR_ScrollToView,
+            )
+
+    def UpdateStepSequencerView(self, Force=False):
+        if not self.IsStepSequencerMode():
+            return
+
+        self.NormalizeStepSequencerOffsets()
+        for y in range(0, SClipsH):
+            for x in range(0, SClipsW):
+                channel_index, step = self.StepPadToChannelStep(x, y)
+                self.BtnMap[SClipsY + y][SClipsX + x] = self.GetStepPadColor(channel_index, step)
+
+        self.BtnMap[0][1] = 0x00083F if self.StepOfs > 0 else 0x000108
+        self.BtnMap[0][2] = 0x00083F if self.StepOfs < StepMaxSteps - StepStepsPerChannel else 0x000108
+        self.BtnMap[1][0] = 0x083F08 if self.StepChannelOfs > 0 else 0x010801
+        self.BtnMap[2][0] = 0x083F08 if self.StepChannelOfs < max(0, channels.channelCount() - StepChannelsPerPage) else 0x010801
+
+        self.ApplyControllerModeButtonLeds()
+        if Force:
+            device.fullRefresh()
+            self.SendControllerModeButtonLeds()
+        else:
+            self.FullRefresh_Btn()
+
+    def MoveStepPage(self, Delta):
+        self.StepOfs = utils.Limited(self.StepOfs + (Delta * StepStepsPerChannel), 0, StepMaxSteps - StepStepsPerChannel)
+        self.UpdateStepSequencerView(True)
+        self.FocusStepSequencerRect()
+
+    def MoveStepChannelPage(self, Delta):
+        self.StepChannelOfs = utils.Limited(self.StepChannelOfs + (Delta * StepChannelsPerPage), 0, max(0, channels.channelCount() - StepChannelsPerPage))
+        self.UpdateStepSequencerView(True)
+        self.FocusStepSequencerRect()
+
+    def ToggleStepSequencerPad(self, x, y):
+        channel_index, step = self.StepPadToChannelStep(x, y)
+        if not utils.InterNoSwap(channel_index, 0, channels.channelCount() - 1):
+            return
+        channels.selectOneChannel(channel_index)
+        if not channels.isGridBitAssigned(channel_index):
+            self.UpdateStepSequencerView(False)
+            return
+
+        general.saveUndo('Launchpad Pro MK3: Step seq edit', midi.UF_PR)
+        channels.setGridBit(channel_index, step, int(channels.getGridBit(channel_index, step) == 0))
+        self.UpdateStepSequencerView(False)
+        self.FocusStepSequencerRect()
+
+    def HandleStepSequencerMidi(self, event):
+        event.handled = True
+
+        if event.midiId == midi.MIDI_NOTEOFF:
+            event.data2 = 0
+
+        if event.data2 == 0:
+            return
+
+        if self.IsPlayButton(event):
+            self.TogglePlayback(event)
+            return
+        if event.data1 == 0x50:
+            self.MoveStepChannelPage(-1)
+            return
+        if event.data1 == 0x46:
+            self.MoveStepChannelPage(1)
+            return
+        if event.data1 == 0x5B:
+            self.MoveStepPage(-1)
+            return
+        if event.data1 == 0x5C:
+            self.MoveStepPage(1)
+            return
+
+        y = event.data1 // PadsStride
+        x = event.data1 - y * PadsStride - ClipsX
+        y = ClipsH - ClipsY - y
+        if utils.InterNoSwap(x, 0, SClipsW - 1) and utils.InterNoSwap(y, 0, SClipsH - 1):
+            self.ToggleStepSequencerPad(x, y)
+            return
 
     def CheckSpecialSwitches(self):
 
@@ -816,6 +1060,11 @@ class TLaunchPadPro():
         
     def OnIdle(self):
         if not self.ControllerMode:
+            return
+
+        if self.IsStepSequencerMode():
+            self.ApplyControllerModeButtonLeds()
+            self.UpdateBlinking()
             return
 
         BlinkSpeed = 0x20
@@ -858,6 +1107,11 @@ class TLaunchPadPro():
 
     def OnRefresh(self, flags):
         if not self.ControllerMode:
+            return
+
+        if self.IsStepSequencerMode():
+            if (flags & StepSequencerRefreshFlags) != 0:
+                self.UpdateStepSequencerView(False)
             return
 
         if flags & midi.HW_Dirty_RemoteLinks != 0:
@@ -941,6 +1195,10 @@ class TLaunchPadPro():
 
     def OnUpdateLiveMode(self, LastTrackNum):
         if not self.ControllerMode:
+            return
+
+        if self.IsStepSequencerMode():
+            self.UpdateStepSequencerView(False)
             return
 
         FirstTrackNum = 1
