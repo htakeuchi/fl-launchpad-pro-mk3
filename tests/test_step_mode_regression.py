@@ -1,6 +1,6 @@
 import unittest
 
-from test_step_double import DeviceScriptTestCase, FakeChannels, FakeMixer, FakeTransport, MidiEvent, make_module
+from test_step_pattern_actions import DeviceScriptTestCase, FakeChannels, FakeMixer, FakeTransport, MidiEvent, make_module
 
 
 def grid_data1(module, x, y):
@@ -26,7 +26,7 @@ class StepModeRegressionTests(DeviceScriptTestCase):
         launchpad = module.LaunchPadPro
         launchpad.ControllerMode = True
 
-        event = MidiEvent(module.midi.MIDI_CONTROLCHANGE, module.NoteButton, 127)
+        event = MidiEvent(module.midi.MIDI_CONTROLCHANGE, module.NoteButton, 127, midi_chan=1)
         launchpad.OnMidiMsg(event)
 
         self.assertTrue(event.handled)
@@ -49,7 +49,7 @@ class StepModeRegressionTests(DeviceScriptTestCase):
         launchpad.ControllerMode = True
         launchpad.SurfaceMode = module.SurfaceModeStepSequencer
 
-        event = MidiEvent(module.midi.MIDI_CONTROLCHANGE, module.NoteButton, 127)
+        event = MidiEvent(module.midi.MIDI_CONTROLCHANGE, module.NoteButton, 127, midi_chan=1)
         launchpad.OnMidiMsg(event)
 
         self.assertTrue(event.handled)

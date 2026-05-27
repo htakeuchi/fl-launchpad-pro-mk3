@@ -54,7 +54,9 @@ ShiftButton = 0x5A
 NoteButton = 0x5E
 ChordButton = 0x5F
 CustomButton = 0x60
+ClearButton = 0x3C
 DuplicateButton = 0x32
+PatternsButton = 0x59
 TrackControlMuteButton = 0x02
 TrackControlSoloButton = 0x03
 TrackSelectFirstButton = 0x65
@@ -82,7 +84,6 @@ LayoutNote = 4
 
 SurfaceModePerformance = 0
 SurfaceModeStepSequencer = 1
-StepDoubleEnabled = False
 StepTrackControlNone = 0
 StepTrackControlMute = 1
 StepTrackControlSolo = 2
@@ -97,7 +98,6 @@ StepMuteLed = 0x3F1800
 StepMuteDimLed = 0x080300
 StepSoloLed = 0x00083F
 StepSoloDimLed = 0x000108
-StepParameterIndexes = (0, 1, 2, 3, 4, 5, 6, 7)
 
 StepChannelFallbackColors = (
     0x3F1206,
@@ -288,8 +288,14 @@ class TLaunchPadPro():
     def IsNoteButton(self, event):
         return (event.midiId in [midi.MIDI_NOTEON, midi.MIDI_NOTEOFF, midi.MIDI_CONTROLCHANGE]) and (event.data1 == NoteButton)
 
+    def IsClearButton(self, event):
+        return (event.midiId in [midi.MIDI_NOTEON, midi.MIDI_NOTEOFF, midi.MIDI_CONTROLCHANGE]) and (event.data1 == ClearButton)
+
     def IsDuplicateButton(self, event):
         return (event.midiId in [midi.MIDI_NOTEON, midi.MIDI_NOTEOFF, midi.MIDI_CONTROLCHANGE]) and (event.data1 == DuplicateButton)
+
+    def IsPatternsButton(self, event):
+        return (event.midiId in [midi.MIDI_NOTEON, midi.MIDI_NOTEOFF, midi.MIDI_CONTROLCHANGE]) and (event.data1 == PatternsButton)
 
     def IsStepTrackControlButton(self, event):
         return (
@@ -447,20 +453,6 @@ class TLaunchPadPro():
                 event.handled = True
                 return
 
-        if StepDoubleEnabled and self.IsStepSequencerMode() and self.IsDuplicateButton(event) and self.Shift:
-            event.handled = True
-            if event.data2 > 0:
-                self.DoubleCurrentStepPatternPage()
-            return
-
-        if self.IsStepSequencerMode() and self.IsPlayButton(event):
-            event.handled = True
-            self.TogglePlayback(event)
-            return
-
-        if event.midiChan > 0:
-            return
-
         if self.IsSessionButton(event):
             event.handled = True
             if event.data2 > 0:
@@ -483,6 +475,29 @@ class TLaunchPadPro():
             if event.data2 > 0:
                 self.SetStandaloneLayoutFromModeButton(event.data1)
                 self.SetControllerMode(False)
+            return
+
+        if self.IsStepSequencerMode() and self.IsPlayButton(event):
+            event.handled = True
+            self.TogglePlayback(event)
+            return
+
+        if self.IsStepSequencerMode() and (
+            self.IsClearButton(event) or
+            self.IsDuplicateButton(event) or
+            (self.IsPatternsButton(event) and not self.Shift)
+        ):
+            event.handled = True
+            if event.data2 > 0:
+                if self.IsClearButton(event):
+                    self.CreateStepPattern()
+                elif self.IsDuplicateButton(event):
+                    self.DuplicateStepPattern()
+                else:
+                    self.CycleStepPattern()
+            return
+
+        if event.midiChan > 0:
             return
 
         if not self.ControllerMode:
@@ -1196,42 +1211,6 @@ class TLaunchPadPro():
         self.UpdateStepSequencerView(True)
         self.FocusStepSequencerRect()
 
-    def CopyStepRange(self, SourceStep, DestStep, StepCount):
-        pattern_index = patterns.patternNumber()
-        channel_count = channels.channelCount()
-        active_count = 0
-
-        for channel_index in range(0, channel_count):
-            if not channels.isGridBitAssigned(channel_index):
-                continue
-            global_channel_index = channels.getChannelIndex(channel_index)
-            step_data = []
-            for step_offset in range(0, StepCount):
-                source_step = SourceStep + step_offset
-                active = int(channels.getGridBit(channel_index, source_step) > 0)
-                parameters = []
-                if active > 0:
-                    for parameter in StepParameterIndexes:
-                        parameters.append(channels.getCurrentStepParam(channel_index, source_step, parameter))
-                step_data.append((active, parameters))
-
-            for step_offset in range(0, StepCount):
-                dest_step = DestStep + step_offset
-                active, parameters = step_data[step_offset]
-                channels.setGridBit(channel_index, dest_step, active)
-                if active > 0:
-                    active_count += 1
-                    for parameter_index in range(0, len(StepParameterIndexes)):
-                        channels.setStepParameterByIndex(
-                            global_channel_index,
-                            pattern_index,
-                            dest_step,
-                            StepParameterIndexes[parameter_index],
-                            parameters[parameter_index],
-                            1,
-                        )
-        return active_count
-
     def GetPatternLengthSteps(self, PatternIndex):
         return patterns.getPatternLength(PatternIndex)
 
@@ -1242,67 +1221,64 @@ class TLaunchPadPro():
             pattern_length_steps = self.StepOfs + StepStepsPerChannel
         return utils.Limited(pattern_length_steps, StepStepsPerChannel, StepMaxSteps)
 
-    def EnsureCurrentPatternLength(self, TargetStepCount):
-        pattern_index = patterns.patternNumber()
-        target_step_count = max(1, TargetStepCount)
-        has_set_pattern_length = hasattr(patterns, 'setPatternLength')
-        has_increment_pattern_length = hasattr(patterns, 'incrementPatternLength')
-        print(
-            'Launchpad Step Double: length before',
-            self.GetPatternLengthSteps(pattern_index),
-            'target steps',
-            target_step_count,
-        )
-        if self.GetPatternLengthSteps(pattern_index) >= TargetStepCount:
-            return True
-
-        if has_set_pattern_length:
-            try:
-                patterns.setPatternLength(pattern_index, target_step_count)
-                print('Launchpad Step Double: after setPatternLength', patterns.getPatternLength(pattern_index))
-                if self.GetPatternLengthSteps(pattern_index) >= TargetStepCount:
-                    return True
-            except Exception as exc:
-                print('Launchpad Step Double: setPatternLength failed', exc)
-        else:
-            print('Launchpad Step Double: setPatternLength unavailable')
-
-        if has_increment_pattern_length:
-            current_step_count = patterns.getPatternLength(pattern_index)
-            try:
-                step_offset = max(1, target_step_count - current_step_count)
-                patterns.incrementPatternLength(pattern_index, step_offset)
-                print('Launchpad Step Double: after incrementPatternLength', patterns.getPatternLength(pattern_index))
-                if self.GetPatternLengthSteps(pattern_index) >= TargetStepCount:
-                    return True
-            except Exception as exc:
-                print('Launchpad Step Double: incrementPatternLength failed', exc)
-        else:
-            print('Launchpad Step Double: incrementPatternLength unavailable')
-
-        print('Launchpad Step Double: direct length API failed')
-        return False
-
-    def DoubleCurrentStepPatternPage(self):
-        source_step = self.StepOfs
-        dest_step = source_step + StepStepsPerChannel
-        current_length_steps = self.GetCurrentPatternLengthSteps()
-        target_length_steps = max(current_length_steps + StepStepsPerChannel, dest_step + StepStepsPerChannel)
-        if target_length_steps > StepMaxSteps:
-            return
-
-        if not self.EnsureCurrentPatternLength(target_length_steps):
-            # In FL Studio 2025, writes beyond getPatternLength() can wrap over steps 1-16.
-            print('Launchpad Step Double: length unavailable, copy skipped')
-            return
-
-        general.saveUndo('Launchpad Pro MK3: Step seq double', midi.UF_PR)
-        active_count = self.CopyStepRange(source_step, dest_step, StepStepsPerChannel)
-        print('Launchpad Step Double: active steps copied', active_count)
-
-        self.StepOfs = utils.Limited(dest_step, 0, StepMaxSteps - StepStepsPerChannel)
+    def RefreshStepPatternView(self):
+        self.StepOfs = 0
         self.UpdateStepSequencerView(True)
         self.FocusStepSequencerRect()
+
+    def CreateStepPattern(self):
+        if not hasattr(patterns, 'findFirstNextEmptyPat'):
+            print('Launchpad Step Pattern: findFirstNextEmptyPat unavailable, create skipped')
+            return
+        flags = getattr(midi, 'FFNEP_FindFirst', 0) | getattr(midi, 'FFNEP_DontPromptName', 2)
+        patterns.findFirstNextEmptyPat(flags)
+        self.RefreshStepPatternView()
+
+    def DuplicateStepPattern(self):
+        if not hasattr(patterns, 'clonePattern'):
+            print('Launchpad Step Pattern: clonePattern unavailable, duplicate skipped')
+            return
+        source_pattern = patterns.patternNumber()
+        before_indexes = self.GetExistingStepPatternIndexes()
+        patterns.clonePattern(source_pattern)
+        if patterns.patternNumber() == source_pattern and hasattr(patterns, 'jumpToPattern'):
+            after_indexes = self.GetExistingStepPatternIndexes()
+            for pattern_index in after_indexes:
+                if pattern_index not in before_indexes:
+                    patterns.jumpToPattern(pattern_index)
+                    break
+        self.RefreshStepPatternView()
+
+    def GetExistingStepPatternIndexes(self):
+        if not hasattr(patterns, 'isPatternDefault'):
+            print('Launchpad Step Pattern: isPatternDefault unavailable, existing pattern scan skipped')
+            return []
+
+        current_pattern = patterns.patternNumber()
+        pattern_max = patterns.patternMax()
+        indexes = []
+        for pattern_index in range(1, pattern_max + 1):
+            if pattern_index == current_pattern or not patterns.isPatternDefault(pattern_index):
+                indexes.append(pattern_index)
+        return indexes
+
+    def CycleStepPattern(self):
+        if not hasattr(patterns, 'jumpToPattern'):
+            print('Launchpad Step Pattern: jumpToPattern unavailable, pattern cycle skipped')
+            return
+
+        indexes = self.GetExistingStepPatternIndexes()
+        if len(indexes) <= 0:
+            return
+
+        current_pattern = patterns.patternNumber()
+        next_pattern = indexes[0]
+        for pattern_index in indexes:
+            if pattern_index > current_pattern:
+                next_pattern = pattern_index
+                break
+        patterns.jumpToPattern(next_pattern)
+        self.RefreshStepPatternView()
 
     def ToggleStepSequencerPad(self, x, y):
         channel_index, step = self.StepPadToChannelStep(x, y)
@@ -1335,6 +1311,15 @@ class TLaunchPadPro():
 
         if self.IsPlayButton(event):
             self.TogglePlayback(event)
+            return
+        if self.IsClearButton(event):
+            self.CreateStepPattern()
+            return
+        if self.IsDuplicateButton(event):
+            self.DuplicateStepPattern()
+            return
+        if self.IsPatternsButton(event) and not self.Shift:
+            self.CycleStepPattern()
             return
         if self.IsStepTrackControlButton(event):
             if event.data1 == TrackControlMuteButton:
@@ -1554,10 +1539,13 @@ class TLaunchPadPro():
             'checks': [
                 self.ProbeValue('general.getVersion', lambda: general.getVersion()),
                 self.ProbeValue('patterns.patternNumber', lambda: patterns.patternNumber()),
+                self.ProbeValue('patterns.patternCount', lambda: patterns.patternCount()),
                 self.ProbeValue('patterns.patternMax', lambda: patterns.patternMax()),
                 self.ProbeValue('patterns.getPatternLength', lambda: patterns.getPatternLength(patterns.patternNumber())),
-                self.ProbeValue('has patterns.setPatternLength', lambda: hasattr(patterns, 'setPatternLength')),
-                self.ProbeValue('has patterns.incrementPatternLength', lambda: hasattr(patterns, 'incrementPatternLength')),
+                self.ProbeValue('has patterns.findFirstNextEmptyPat', lambda: hasattr(patterns, 'findFirstNextEmptyPat')),
+                self.ProbeValue('has patterns.clonePattern', lambda: hasattr(patterns, 'clonePattern')),
+                self.ProbeValue('has patterns.isPatternDefault', lambda: hasattr(patterns, 'isPatternDefault')),
+                self.ProbeValue('has patterns.jumpToPattern', lambda: hasattr(patterns, 'jumpToPattern')),
                 self.ProbeValue('has patterns.setChannelLoop', lambda: hasattr(patterns, 'setChannelLoop')),
                 self.ProbeValue('channels.channelCount', lambda: channels.channelCount()),
                 self.ProbeValue('ui.getVersion', lambda: ui.getVersion()),

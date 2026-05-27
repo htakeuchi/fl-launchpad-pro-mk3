@@ -207,10 +207,11 @@ channel taking two Launchpad rows. Each visible channel therefore shows one
   channels 1-8 and return the Track Select row to an inactive state;
 - after soloing a channel from Solo mode, press Solo again to clear the last
   selected solo;
+- press Clear to create and select the first empty FL Studio pattern without a
+  naming prompt;
+- press Duplicate to clone the current pattern and select the clone;
+- press the right-side Patterns button to cycle through existing patterns;
 - press Note again to leave Step Mode and return to normal Launchpad Note Mode.
-- Shift + Duplicate / Double support is currently disabled. The implementation
-  is kept behind a feature flag for a future FL Studio build that exposes a
-  safe pattern length API to MIDI scripts.
 
 After returning to normal Launchpad Note Mode, enter Step Mode again with
 Session, then Note. The Launchpad firmware handles Note Mode button presses
@@ -344,7 +345,7 @@ the 8x8 grid send Control Change messages in Programmer Mode.
 
 | Hardware control | Programmer CC | Normal operation | FL Control Mode |
 | --- | --- | --- | --- |
-| Shift | `90` | Handled by Launchpad firmware where applicable | Reserved modifier for disabled Double support |
+| Shift | `90` | Handled by Launchpad firmware where applicable | Modifier state tracked by the script |
 | Left navigation | `91` | Hardware or pass-through behavior | Clip/page offset left; Step Mode moves 16 steps left |
 | Right navigation | `92` | Hardware or pass-through behavior | Clip/page offset right; Step Mode moves 16 steps right |
 | Session | `93` | Enter FL Control Mode | Exit FL Control Mode |
@@ -356,13 +357,13 @@ the 8x8 grid send Control Change messages in Programmer Mode.
 | Novation logo LED | `99` | LED only | LED only, not a button |
 | Up navigation | `80` | Hardware or pass-through behavior | Track offset up; Step Mode moves four channels up |
 | Down navigation | `70` | Hardware or pass-through behavior | Track offset down; Step Mode moves four channels down |
-| Clear | `60` | Hardware or pass-through behavior | Tap Tempo |
-| Duplicate | `50` | Hardware or pass-through behavior | Tempo Nudge +; Step Mode Double support is currently disabled |
+| Clear | `60` | Hardware or pass-through behavior | Tap Tempo; Step Mode creates and selects the first empty pattern |
+| Duplicate | `50` | Hardware or pass-through behavior | Tempo Nudge +; Step Mode clones the current pattern and selects the clone |
 | Quantise | `40` | Hardware or pass-through behavior | Tempo Nudge - |
 | Fixed Length | `30` | Hardware or pass-through behavior | Velocity Lock |
 | Play | `20` | Hardware or pass-through behavior | FL Studio Play; stops playback when already playing; LED lights while playing |
 | Record / Capture MIDI | `10` | Hardware or pass-through behavior | FL Studio Stop |
-| Right scene-launch column | `89`, `79`, `69`, `59`, `49`, `39`, `29`, `19` | Hardware or pass-through behavior | Row/track trigger area |
+| Right scene-launch column | `89`, `79`, `69`, `59`, `49`, `39`, `29`, `19` | Hardware or pass-through behavior | Row/track trigger area; Step Mode uses the top Patterns button `89` to cycle existing patterns |
 | Bottom track-control row | `1` through `8` | Hardware or pass-through behavior | Column/scene trigger area; Step Mode uses Mute `2` and Solo `3` as Track Select row action selectors |
 | Track select row | `101` through `108` | Hardware or pass-through behavior | Step Mode uses `101` through `108` for Channel Rack channels 1-8 when Mute or Solo is active |
 | Ableton track buttons outside CC `1` through `8` | Varies by layout | Hardware or pass-through behavior | Not assigned by this script |
@@ -400,10 +401,10 @@ result from a running FL Studio instance:
 python3 scripts/request-fl-capability-probe.py --install --wait 30
 ```
 
-The probe records API availability such as `patterns.setPatternLength`,
-`patterns.incrementPatternLength`, `patterns.getPatternLength`, FL's reported
-version, and public names exposed by the `patterns` module. It does not write
-steps or change project data.
+The probe records API availability such as `patterns.findFirstNextEmptyPat`,
+`patterns.clonePattern`, `patterns.isPatternDefault`,
+`patterns.getPatternLength`, FL's reported version, and public names exposed by
+the `patterns` module. It does not write steps or change project data.
 
 ## Known Notes
 

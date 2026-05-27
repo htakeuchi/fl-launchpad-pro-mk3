@@ -24,35 +24,61 @@ FL_MODULES = (
 
 
 class MidiEvent:
-    def __init__(self, midi_id, data1, data2):
+    def __init__(self, midi_id, data1, data2, midi_chan=0):
         self.midiId = midi_id
         self.status = midi_id
         self.data1 = data1
         self.data2 = data2
-        self.midiChan = 0
+        self.midiChan = midi_chan
         self.handled = False
 
 
 class FakePatterns(types.ModuleType):
-    def __init__(self, expose_length_api=False):
+    def __init__(self, existing_patterns=None, pattern=1, select_clone=True):
         super().__init__("patterns")
         self.length = 16
-        self.pattern = 1
-        self.max_pattern = 512
-        if expose_length_api:
-            self.setPatternLength = self._set_pattern_length
+        self.pattern = pattern
+        self.max_pattern = 16
+        self.select_clone = select_clone
+        self.existing_patterns = set(existing_patterns or [pattern])
+        self.find_empty_calls = []
+        self.clone_calls = []
+        self.jump_calls = []
 
     def patternNumber(self):
         return self.pattern
 
+    def patternCount(self):
+        return len(self.existing_patterns)
+
     def patternMax(self):
         return self.max_pattern
 
+    def isPatternDefault(self, index):
+        return index not in self.existing_patterns
+
+    def jumpToPattern(self, index):
+        self.jump_calls.append(index)
+        self.pattern = index
+
+    def findFirstNextEmptyPat(self, flags, x=-1, y=-1):
+        self.find_empty_calls.append((flags, x, y))
+        for index in range(1, self.max_pattern + 1):
+            if index not in self.existing_patterns:
+                self.pattern = index
+                self.existing_patterns.add(index)
+                return
+
+    def clonePattern(self, index=None):
+        source_index = index if index is not None else self.pattern
+        dest_index = max(self.existing_patterns) + 1
+        self.clone_calls.append((source_index, dest_index))
+        self.existing_patterns.add(dest_index)
+        if self.select_clone:
+            self.pattern = dest_index
+
     def getPatternLength(self, index):
         return self.length
-
-    def _set_pattern_length(self, index, length):
-        self.length = length
 
 
 class FakeChannels(types.ModuleType):
@@ -61,7 +87,6 @@ class FakeChannels(types.ModuleType):
         self.count = count
         self.selected = selected
         self.grid = {(0, 0): 1, (0, 3): 1}
-        self.step_params = {}
         self.set_grid_calls = []
         self.muted = set()
         self.soloed = set()
@@ -73,9 +98,6 @@ class FakeChannels(types.ModuleType):
 
     def isGridBitAssigned(self, index):
         return 0 <= index < self.count
-
-    def getChannelIndex(self, index):
-        return index
 
     def selectedChannel(self, *args):
         return self.selected
@@ -89,12 +111,6 @@ class FakeChannels(types.ModuleType):
     def setGridBit(self, index, step, value):
         self.set_grid_calls.append((index, step, value))
         self.grid[(index, step)] = value
-
-    def getCurrentStepParam(self, index, step, parameter):
-        return 100 + parameter
-
-    def setStepParameterByIndex(self, channel_index, pattern_index, step, parameter, value, flags):
-        self.step_params[(channel_index, pattern_index, step, parameter)] = value
 
     def selectOneChannel(self, index):
         self.selected = index
@@ -178,6 +194,8 @@ def make_midi_module():
     module.PM_Playing = 1
     module.UF_PR = 0
     module.CR_ScrollToView = 0
+    module.FFNEP_FindFirst = 0
+    module.FFNEP_DontPromptName = 2
     module.FromMIDI_Max = 65535
     module.CC_Special = 0x1000
     module.ST_Beat = 0
@@ -267,51 +285,128 @@ class DeviceScriptTestCase(unittest.TestCase):
                 sys.modules[name] = module
 
 
-class StepDoubleTests(DeviceScriptTestCase):
-    def test_shift_duplicate_does_not_call_double_when_feature_flag_is_disabled(self):
-        module, _, _ = self.load_device_script()
+class StepPatternActionTests(DeviceScriptTestCase):
+    def test_clear_button_creates_first_empty_pattern_without_prompt(self):
+        patterns_module = FakePatterns(existing_patterns={1}, pattern=1)
+        module, _, _ = self.load_device_script(patterns_module=patterns_module)
+        launchpad = module.LaunchPadPro
+        launchpad.ControllerMode = True
+        launchpad.SurfaceMode = module.SurfaceModeStepSequencer
+        launchpad.StepOfs = 16
+
+        event = MidiEvent(module.midi.MIDI_CONTROLCHANGE, module.ClearButton, 127)
+        launchpad.OnMidiMsg(event)
+
+        self.assertTrue(event.handled)
+        self.assertEqual(patterns_module.find_empty_calls, [(module.midi.FFNEP_DontPromptName, -1, -1)])
+        self.assertEqual(patterns_module.patternNumber(), 2)
+        self.assertEqual(launchpad.StepOfs, 0)
+
+    def test_duplicate_button_clones_current_pattern_and_selects_clone(self):
+        patterns_module = FakePatterns(existing_patterns={1, 2}, pattern=2)
+        module, _, _ = self.load_device_script(patterns_module=patterns_module)
+        launchpad = module.LaunchPadPro
+        launchpad.ControllerMode = True
+        launchpad.SurfaceMode = module.SurfaceModeStepSequencer
+
+        event = MidiEvent(module.midi.MIDI_CONTROLCHANGE, module.DuplicateButton, 127)
+        launchpad.OnMidiMsg(event)
+
+        self.assertTrue(event.handled)
+        self.assertEqual(patterns_module.clone_calls, [(2, 3)])
+        self.assertEqual(patterns_module.patternNumber(), 3)
+
+    def test_duplicate_button_moves_to_new_clone_if_clone_api_keeps_source_active(self):
+        patterns_module = FakePatterns(existing_patterns={1, 3}, pattern=1, select_clone=False)
+        module, _, _ = self.load_device_script(patterns_module=patterns_module)
+        launchpad = module.LaunchPadPro
+        launchpad.ControllerMode = True
+        launchpad.SurfaceMode = module.SurfaceModeStepSequencer
+
+        event = MidiEvent(module.midi.MIDI_CONTROLCHANGE, module.DuplicateButton, 127)
+        launchpad.OnMidiMsg(event)
+
+        self.assertTrue(event.handled)
+        self.assertEqual(patterns_module.clone_calls, [(1, 4)])
+        self.assertEqual(patterns_module.jump_calls, [4])
+        self.assertEqual(patterns_module.patternNumber(), 4)
+
+    def test_patterns_button_cycles_only_non_default_patterns(self):
+        patterns_module = FakePatterns(existing_patterns={1, 3}, pattern=1)
+        module, _, _ = self.load_device_script(patterns_module=patterns_module)
+        launchpad = module.LaunchPadPro
+        launchpad.ControllerMode = True
+        launchpad.SurfaceMode = module.SurfaceModeStepSequencer
+
+        first_event = MidiEvent(module.midi.MIDI_CONTROLCHANGE, module.PatternsButton, 127)
+        launchpad.OnMidiMsg(first_event)
+        second_event = MidiEvent(module.midi.MIDI_CONTROLCHANGE, module.PatternsButton, 127)
+        launchpad.OnMidiMsg(second_event)
+
+        self.assertTrue(first_event.handled)
+        self.assertTrue(second_event.handled)
+        self.assertEqual(patterns_module.jump_calls, [3, 1])
+        self.assertEqual(patterns_module.patternNumber(), 1)
+
+    def test_shift_patterns_button_does_not_cycle_patterns(self):
+        patterns_module = FakePatterns(existing_patterns={1, 2}, pattern=1)
+        module, _, _ = self.load_device_script(patterns_module=patterns_module)
         launchpad = module.LaunchPadPro
         launchpad.ControllerMode = True
         launchpad.SurfaceMode = module.SurfaceModeStepSequencer
         launchpad.Shift = True
 
-        def fail_double():
-            raise AssertionError("DoubleCurrentStepPatternPage should not be called")
-
-        launchpad.DoubleCurrentStepPatternPage = fail_double
-        event = MidiEvent(module.midi.MIDI_CONTROLCHANGE, module.DuplicateButton, 127)
-
+        event = MidiEvent(module.midi.MIDI_CONTROLCHANGE, module.PatternsButton, 127)
         launchpad.OnMidiMsg(event)
 
         self.assertTrue(event.handled)
+        self.assertEqual(patterns_module.jump_calls, [])
+        self.assertEqual(patterns_module.patternNumber(), 1)
 
-    def test_double_does_not_copy_without_pattern_length_api(self):
-        module, _, channels_module = self.load_device_script(channels_module=RaisingChannels())
+    def test_step_pattern_buttons_are_handled_before_nonzero_midi_channel_guard(self):
+        patterns_module = FakePatterns(existing_patterns={1, 3}, pattern=1)
+        module, _, _ = self.load_device_script(patterns_module=patterns_module)
         launchpad = module.LaunchPadPro
-        launchpad.UpdateStepSequencerView = lambda force=False: None
-        launchpad.FocusStepSequencerRect = lambda: None
+        launchpad.ControllerMode = True
+        launchpad.SurfaceMode = module.SurfaceModeStepSequencer
 
-        launchpad.DoubleCurrentStepPatternPage()
+        clear_event = MidiEvent(module.midi.MIDI_CONTROLCHANGE, module.ClearButton, 127, midi_chan=1)
+        duplicate_event = MidiEvent(module.midi.MIDI_CONTROLCHANGE, module.DuplicateButton, 127, midi_chan=1)
+        patterns_event = MidiEvent(module.midi.MIDI_CONTROLCHANGE, module.PatternsButton, 127, midi_chan=1)
+        launchpad.OnMidiMsg(clear_event)
+        launchpad.OnMidiMsg(duplicate_event)
+        launchpad.OnMidiMsg(patterns_event)
 
-        self.assertEqual(launchpad.StepOfs, 0)
-        self.assertEqual(channels_module.set_grid_calls, [])
+        self.assertTrue(clear_event.handled)
+        self.assertTrue(duplicate_event.handled)
+        self.assertTrue(patterns_event.handled)
+        self.assertEqual(patterns_module.find_empty_calls, [(module.midi.FFNEP_DontPromptName, -1, -1)])
+        self.assertEqual(patterns_module.clone_calls, [(2, 4)])
+        self.assertEqual(patterns_module.jump_calls, [1])
 
-    def test_double_copies_after_pattern_length_api_extends_length(self):
-        patterns_module = FakePatterns(expose_length_api=True)
-        channels_module = FakeChannels()
-        module, _, _ = self.load_device_script(patterns_module=patterns_module, channels_module=channels_module)
+    def test_mk3_cc_channel_sequence_enters_step_mode_before_pattern_buttons(self):
+        patterns_module = FakePatterns(existing_patterns={1, 3}, pattern=1)
+        module, _, _ = self.load_device_script(patterns_module=patterns_module)
         launchpad = module.LaunchPadPro
-        launchpad.UpdateStepSequencerView = lambda force=False: None
-        launchpad.FocusStepSequencerRect = lambda: None
+        launchpad.ControllerMode = True
 
-        launchpad.DoubleCurrentStepPatternPage()
+        note_event = MidiEvent(module.midi.MIDI_CONTROLCHANGE, module.NoteButton, 127, midi_chan=1)
+        clear_event = MidiEvent(module.midi.MIDI_CONTROLCHANGE, module.ClearButton, 127, midi_chan=1)
+        duplicate_event = MidiEvent(module.midi.MIDI_CONTROLCHANGE, module.DuplicateButton, 127, midi_chan=1)
+        patterns_event = MidiEvent(module.midi.MIDI_CONTROLCHANGE, module.PatternsButton, 127, midi_chan=1)
+        launchpad.OnMidiMsg(note_event)
+        launchpad.OnMidiMsg(clear_event)
+        launchpad.OnMidiMsg(duplicate_event)
+        launchpad.OnMidiMsg(patterns_event)
 
-        self.assertEqual(patterns_module.length, 32)
-        self.assertEqual(launchpad.StepOfs, 16)
-        self.assertEqual(channels_module.grid[(0, 16)], 1)
-        self.assertEqual(channels_module.grid[(0, 19)], 1)
-        self.assertEqual(channels_module.grid[(0, 17)], 0)
-        self.assertEqual(channels_module.step_params[(0, 1, 16, 0)], 100)
+        self.assertTrue(note_event.handled)
+        self.assertTrue(launchpad.IsStepSequencerMode())
+        self.assertTrue(clear_event.handled)
+        self.assertTrue(duplicate_event.handled)
+        self.assertTrue(patterns_event.handled)
+        self.assertEqual(patterns_module.find_empty_calls, [(module.midi.FFNEP_DontPromptName, -1, -1)])
+        self.assertEqual(patterns_module.clone_calls, [(2, 4)])
+        self.assertEqual(patterns_module.jump_calls, [1])
 
     def test_step_edit_skips_steps_outside_current_pattern_length(self):
         module, _, channels_module = self.load_device_script(channels_module=RaisingChannels())
